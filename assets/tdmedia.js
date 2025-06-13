@@ -45,41 +45,44 @@
 			});
 			const images = response.filter(item => item.mime_type?.startsWith('image/'));
 
-			const photoItems = [];
+			const metaResponses = await Promise.all(
+                images.map(img => wp.apiFetch({ path: `/wp/v2/media/${img.id}` }))
+            );
 
-			for (const item of images) {
-				const { id, source_url, title, mime_type, media_details, date } = item;
-				const meta = await wp.apiFetch({ path: `/wp/v2/media/${id}` });
+            const photoItems = images.map((item, i) => {
+                const meta = metaResponses[i];
+                const { id, source_url, title, mime_type, media_details, date } = item;
 
-				const avifUrl = meta.meta?._avif_url || null;
-				const avifSizeKb = parseInt(meta.meta?._avif_size_kb || 0, 10);
-				const webpUrl = meta.meta?._webp_url || null;
-				const webpSizeKb = parseInt(meta.meta?._webp_size_kb || 0, 10);
-				const scaledSizeBytes = parseInt(meta.meta?._scaled_size || 0, 10);
+                const avifUrl = meta.meta?._avif_url || null;
+                const avifSizeKb = parseInt(meta.meta?._avif_size_kb || 0, 10);
+                const webpUrl = meta.meta?._webp_url || null;
+                const webpSizeKb = parseInt(meta.meta?._webp_size_kb || 0, 10);
+                const scaledSizeBytes = parseInt(meta.meta?._scaled_size || 0, 10);
 
-				let finalUrl = source_url;
-				let finalLabel = 'Original';
-				let finalSize = media_details.filesize || 0;
+                let finalUrl = source_url;
+                let finalLabel = 'Original';
+                let finalSize = media_details.filesize || 0;
 
-				if (avifUrl && avifSizeKb > 0) {
-					finalUrl = avifUrl;
-					finalLabel = 'AVIF';
-					finalSize = avifSizeKb * 1024;
-				} else if (webpUrl && webpSizeKb > 0) {
-					finalUrl = webpUrl;
-					finalLabel = 'WebP';
-					finalSize = webpSizeKb * 1024;
-				} else if (scaledSizeBytes > 0) {
-					finalLabel = 'Scaled JPG';
-					finalSize = scaledSizeBytes;
-				}
+                if (avifUrl && avifSizeKb > 0) {
+                    finalUrl = avifUrl;
+                    finalLabel = 'AVIF';
+                    finalSize = avifSizeKb * 1024;
+                } else if (webpUrl && webpSizeKb > 0) {
+                    finalUrl = webpUrl;
+                    finalLabel = 'WebP';
+                    finalSize = webpSizeKb * 1024;
+                } else if (scaledSizeBytes > 0) {
+                    finalLabel = 'Scaled JPG';
+                    finalSize = scaledSizeBytes;
+                }
 
-				photoItems.push({
-					id, title, mime_type, finalUrl, finalLabel, finalSize, date,
-					width: media_details.width,
-					height: media_details.height
-				});
-			}
+                return {
+                    id, title, mime_type, finalUrl, finalLabel, finalSize, date,
+                    width: media_details.width,
+                    height: media_details.height
+                };
+            });
+
 
 			layoutRows(photoItems);
 			status.textContent = `${photoItems.length} images loaded.`;
@@ -93,7 +96,7 @@
 		grid.innerHTML = '';
 		const containerWidth = grid.clientWidth;
 		const targetHeight = 400;
-		const gap = 10;
+		const gap = 16;
 
 		let row = [];
 		let rowAspectSum = 0;
@@ -119,7 +122,7 @@
 		const rowEl = document.createElement('div');
 		rowEl.className = 'tdmedia-row';
 		rowEl.style.display = 'flex';
-		rowEl.style.gap = '10px';
+		rowEl.style.gap = '16px';
 		rowEl.style.marginBottom = '1rem';
 
 		for (const img of row) {

@@ -34,7 +34,7 @@
 /* Each row holds a series of .tdmedia-item blocks */
 .tdmedia-row {
 	display: flex;
-	gap: 10px;
+	gap: 16px;
 	margin-bottom: 1rem;
 }
 
