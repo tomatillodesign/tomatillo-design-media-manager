@@ -201,8 +201,7 @@ body.tdmedia-uploading {
 	z-index: 1; /* Above the overlay */
 	background: #fff;
 	border-radius: 8px;
-	display: grid;
-    grid-template-columns: 3fr 1fr;
+	display: flex;
 	gap: 2rem;
 	padding: 2rem;
 	width: 80vw;
@@ -212,10 +211,18 @@ body.tdmedia-uploading {
 	pointer-events: auto; /* Allow interactions inside modal */
 }
 
-
+/* Optional: constrain image height too */
+.tdmedia-modal-left img {
+    height: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	display: block;
+	margin: 0 auto;
+}
 
 /* Image section */
 .tdmedia-modal-image {
+    height: 100%;
 	flex: 1 1 60%;
 	display: flex;
 	align-items: center;
@@ -230,6 +237,13 @@ body.tdmedia-uploading {
 	max-height: 100%;
 	object-fit: contain;
 	border-radius: 0;
+}
+
+/* Right side: scrolls if content is too tall */
+.tdmedia-modal-right {
+	flex: 1 1 40%;
+	overflow-y: auto;
+	max-height: 100%;
 }
 
 /* Form section */
@@ -250,6 +264,42 @@ body.tdmedia-uploading {
 		padding-right: 0;
 	}
 }
+
+
+
+#tdmedia-loading-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(255, 255, 255, 0.92);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+    cursor: wait;
+}
+
+#tdmedia-loading-overlay.visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+#tdmedia-loading-overlay .spinner {
+	width: 48px;
+	height: 48px;
+	border: 5px solid #ccc;
+	border-top-color: #2363e0;
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 
 
 /* Responsive row tweaks */

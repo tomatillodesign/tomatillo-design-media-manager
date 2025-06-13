@@ -52,11 +52,26 @@
         <div id="tdmedia-grid"></div>
     `;
 
+    // Inject loading overlay
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'tdmedia-loading-overlay';
+    loadingOverlay.innerHTML = `<div class="spinner" aria-label="Loading…"></div>`;
+    document.body.appendChild(loadingOverlay);
+
+    // Show/hide helpers
+    function showLoading() {
+        loadingOverlay.classList.add('visible');
+    }
+
+    function hideLoading() {
+        loadingOverlay.classList.remove('visible');
+    }
 
 	const grid = document.getElementById('tdmedia-grid');
 	const status = document.getElementById('tdmedia-status');
 
 	async function fetchMedia() {
+        showLoading();
 		status.textContent = 'Loading media…';
 		grid.innerHTML = '';
 
@@ -110,7 +125,10 @@
 		} catch (err) {
 			console.error('[TDMEDIA] Error loading media:', err);
 			status.textContent = 'Error loading media.';
-		}
+		} finally {
+            hideLoading();
+        }
+        
 	}
 
 	function layoutRows(items) {
@@ -171,12 +189,41 @@
 			});
 
 			wrapper.addEventListener('click', () => {
-                const modal = document.getElementById('tdmedia-modal');
-                const modalImg = document.getElementById('tdmedia-modal-img');
-                modalImg.src = img.finalUrl;
-                modalImg.alt = img.title.rendered || 'Image';
-                modal.style.display = 'flex';
+                // Remove any existing modal
+                const existing = document.getElementById('tdmedia-modal');
+                if (existing) existing.remove();
+
+                // Create modal wrapper
+                const modal = document.createElement('div');
+                modal.id = 'tdmedia-modal';
+                modal.innerHTML = `
+                    <div class="tdmedia-modal-overlay"></div>
+                    <div class="tdmedia-modal-content" role="dialog" aria-modal="true">
+                        <div class="tdmedia-modal-left">
+                            <div class="tdmedia-modal-image">
+                                <img src="${img.finalUrl}" alt="${img.title.rendered || 'Image'}" />
+                            </div>
+                        </div>
+                        <div class="tdmedia-modal-right">
+                            <h2>${img.title.rendered || '(No title)'}</h2>
+                            <ul class="tdmedia-meta-list">
+                                <li><strong>ID:</strong> ${img.id}</li>
+                                <li><strong>Type:</strong> ${img.finalLabel} — ${img.mime_type}</li>
+                                <li><strong>Size:</strong> ${img.width}×${img.height}</li>
+                                <li><strong>File:</strong> ${formatBytes(img.finalSize)}</li>
+                                <li><strong>Uploaded:</strong> ${formatDate(img.date)}</li>
+                            </ul>
+                            <button id="tdmedia-close-modal" class="tdmedia-close-btn">Close</button>
+                        </div>
+                    </div>
+                `;
+
+                // Append and wire close
+                document.body.appendChild(modal);
+                modal.querySelector('.tdmedia-modal-overlay').addEventListener('click', () => modal.remove());
+                modal.querySelector('#tdmedia-close-modal').addEventListener('click', () => modal.remove());
             });
+
 
 			rowEl.appendChild(wrapper);
 		}
