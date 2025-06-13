@@ -174,6 +174,21 @@
                 console.log('[TDMEDIA] Raw caption:', meta.caption?.rendered);
                 console.log('[TDMEDIA] Cleaned caption:', caption);
 
+                const originalUrl = source_url.replace(/-scaled(?=\.\w{3,4}$)/, '');
+
+                // If your uploads are always in wp-content/uploads/YYYY/MM/
+                const uploadPathMatch = source_url.match(/(\/wp-content\/uploads\/\d{4}\/\d{2}\/)/);
+                const basePath = uploadPathMatch ? uploadPathMatch[1] : '';
+
+                // Extract just the filename
+                const fileName = originalUrl.split('/').pop();
+
+                // Rebuild URL safely
+                const fullOriginalUrl = basePath + fileName;
+
+                // Prepend site domain
+                const fullUrl = window.location.origin + fullOriginalUrl;
+
                 return {
                     id,
                     title,
@@ -185,7 +200,8 @@
                     alt_text: alt,
                     caption: caption,
                     width: media_details.width,
-                    height: media_details.height
+                    height: media_details.height,
+                    fullUrl
                 };
 
             });
@@ -360,12 +376,14 @@
                                 <li><strong>Size:</strong> ${img.width}×${img.height}</li>
                                 <li><strong>File:</strong> ${formatBytes(img.finalSize)}</li>
                                 <li><strong>Uploaded:</strong> ${formatDate(img.date)}</li>
+                                <li><strong>URL:</strong> <span class="clb-pre">${img.finalUrl}</span></li>
+                                <li><strong>Original File:</strong> <span class="clb-pre">${img.fullUrl}</span></li>
                             </ul>
                             
                             <div class="tdmedia-actions">
                                 <button type="button" id="tdmedia-copy-url">Copy Image URL</button>
                                 <a id="tdmedia-download-link" href="#" download target="_blank" rel="noopener">
-                                    <button type="button">Download Image</button>
+                                    <button type="button">Download Original File</button>
                                 </a>
                             </div>
 
@@ -382,7 +400,7 @@
 
                                 <div class="tdmedia-close-modal-wrapper">
                                     <button type="submit" id="tdmedia-save-meta">Save Metadata</button>
-                                    <button id="tdmedia-close-modal" class="tdmedia-close-btn">Close</button>
+                                    <button id="tdmedia-close-modal" type="button" class="tdmedia-close-btn">Close</button>
                                 </div>
                                 
                             </form>
@@ -417,9 +435,10 @@
                     const copyBtn = document.getElementById('tdmedia-copy-url');
                     const downloadLink = document.getElementById('tdmedia-download-link');
                     const currentImageUrl = img.finalUrl;
+                    const fileName = img.fullUrl.split('/').pop() || 'download.jpg';
 
-                    // Set download href
-                    downloadLink.href = currentImageUrl;
+                    downloadLink.href = img.fullUrl;
+                    downloadLink.setAttribute('download', fileName);
 
                     // Copy handler
                     copyBtn.addEventListener('click', async () => {

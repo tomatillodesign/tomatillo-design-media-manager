@@ -316,6 +316,12 @@ body.tdmedia-uploading {
 	font-size: 0.9rem;
 }
 
+.clb-pre {
+    font-family: monospace;
+    padding: 4px;
+    background: #eee;
+}
+
 .tdmedia-actions button:hover {
 	background: #1b4db2;
 }
