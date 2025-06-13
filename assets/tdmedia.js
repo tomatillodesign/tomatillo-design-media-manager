@@ -171,21 +171,12 @@
 			});
 
 			wrapper.addEventListener('click', () => {
-				const frame = wp.media({
-					frame: 'select',
-					title: 'Edit Media Item',
-					button: { text: 'Close' },
-					multiple: false,
-					library: { type: 'image' }
-				});
-				frame.on('open', () => {
-					const selection = frame.state().get('selection');
-					const attachment = wp.media.attachment(img.id);
-					attachment.fetch();
-					selection.add(attachment);
-				});
-				frame.open();
-			});
+                const modal = document.getElementById('tdmedia-modal');
+                const modalImg = document.getElementById('tdmedia-modal-img');
+                modalImg.src = img.finalUrl;
+                modalImg.alt = img.title.rendered || 'Image';
+                modal.style.display = 'flex';
+            });
 
 			rowEl.appendChild(wrapper);
 		}
@@ -200,6 +191,7 @@
 	});
 	setupUploadZone(status, fetchMedia);
 	fetchMedia();
+
 })();
 
 
@@ -273,3 +265,43 @@ function setupUploadZone(status, fetchMedia) {
 		await fetchMedia();
 	});
 }
+
+
+
+
+function injectTdMediaModal() {
+	if (document.getElementById('tdmedia-modal')) return; // Prevent duplicate
+
+	const modal = document.createElement('div');
+	modal.id = 'tdmedia-modal';
+	modal.className = 'tdmedia-modal';
+	modal.style.display = 'none';
+	modal.innerHTML = `
+		<div class="tdmedia-modal-overlay"></div>
+		<div class="tdmedia-modal-content">
+			<div class="tdmedia-modal-image">
+				<img id="tdmedia-modal-img" src="" alt="" />
+			</div>
+			<div class="tdmedia-modal-form-placeholder">
+				<p style="opacity: 0.6;">(Form fields will go here)</p>
+			</div>
+		</div>
+	`;
+
+	document.body.appendChild(modal);
+
+	// Close on overlay click
+	modal.querySelector('.tdmedia-modal-overlay').addEventListener('click', () => {
+		modal.style.display = 'none';
+	});
+
+	// Close on ESC key
+	document.addEventListener('keydown', e => {
+		if (e.key === 'Escape') {
+			modal.style.display = 'none';
+		}
+	});
+}
+document.addEventListener('DOMContentLoaded', () => {
+	    injectTdMediaModal();
+    });

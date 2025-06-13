@@ -174,6 +174,84 @@ body.tdmedia-uploading {
 }
 
 
+/* Modal wrapper */
+#tdmedia-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 999999; /* Ensures it overlays the entire WP UI */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none; /* Prevent modal wrapper itself from intercepting clicks */
+}
+
+/* Dark translucent overlay */
+#tdmedia-modal .tdmedia-modal-overlay {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+	z-index: 0; /* Behind modal content */
+	pointer-events: auto; /* Let clicks dismiss the modal */
+}
+
+/* Modal content block */
+#tdmedia-modal .tdmedia-modal-content {
+	position: relative;
+	z-index: 1; /* Above the overlay */
+	background: #fff;
+	border-radius: 8px;
+	display: grid;
+    grid-template-columns: 3fr 1fr;
+	gap: 2rem;
+	padding: 2rem;
+	width: 80vw;
+	height: 80vh;
+	overflow: hidden;
+	box-shadow: 0 0 20px rgba(0, 0, 0, 0.9);
+	pointer-events: auto; /* Allow interactions inside modal */
+}
+
+
+
+/* Image section */
+.tdmedia-modal-image {
+	flex: 1 1 60%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f0f0f0;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.tdmedia-modal-image img {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	border-radius: 0;
+}
+
+/* Form section */
+.tdmedia-modal-form-placeholder {
+	flex: 1 1 40%;
+	overflow-y: auto;
+	padding-right: 1rem;
+}
+
+/* Responsive fallback: column stack */
+@media (max-width: 800px) {
+	#tdmedia-modal .tdmedia-modal-content {
+		flex-direction: column;
+		padding: 1rem;
+		gap: 1rem;
+	}
+	.tdmedia-modal-form-placeholder {
+		padding-right: 0;
+	}
+}
+
+
 /* Responsive row tweaks */
 @media (max-width: 900px) {
 	.tdmedia-row {
