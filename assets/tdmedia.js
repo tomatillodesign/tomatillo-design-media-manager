@@ -1,5 +1,8 @@
 (function () {
 	console.log('[TDMEDIA] Booting Justified Row Masonry Layout…');
+   
+    // Safety reset if previous upload didn't clear state
+	document.body.classList.remove('tdmedia-uploading');
 
 	// Helpers
 	function formatBytes(bytes) {
@@ -22,15 +25,33 @@
 	if (!app) return;
 
 	app.innerHTML = `
-		<div class="tdmedia-toolbar">
-			<button id="tdmedia-refresh">Refresh</button>
-			<span id="tdmedia-status">Ready.</span>
-		</div>
-		<div id="tdmedia-upload-zone" class="tdmedia-upload-zone">
-			Drag & drop images here to upload
-		</div>
-		<div id="tdmedia-grid"></div>
-	`;
+        <div class="tdmedia-toolbar">
+            <button id="tdmedia-refresh">Refresh</button>
+            <span id="tdmedia-status">Ready.</span>
+        </div>
+
+        <div id="tdmedia-progress-wrapper" style="display: none; margin: 0.5rem 0;">
+            <div id="tdmedia-progress-bar" style="background: #ccc; border-radius: 4px; overflow: hidden; height: 10px;">
+                <div id="tdmedia-progress-bar-inner" style="background: #2363e0; width: 0%; height: 100%; transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <div id="tdmedia-upload-zone" class="tdmedia-upload-zone">
+            Drag & drop images here to upload
+        </div>
+
+        <div id="tdmedia-uploading-overlay" class="tdmedia-overlay-ui" style="display: none;">
+            <div class="tdmedia-overlay-content">
+                <div class="tdmedia-overlay-text">Uploading…</div>
+                <div id="tdmedia-overlay-progress-bar">
+                    <div id="tdmedia-progress-bar-inner-overlay"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tdmedia-grid"></div>
+    `;
+
 
 	const grid = document.getElementById('tdmedia-grid');
 	const status = document.getElementById('tdmedia-status');
@@ -177,47 +198,57 @@
 		clearTimeout(window.__tdmedia_resize_timeout);
 		window.__tdmedia_resize_timeout = setTimeout(fetchMedia, 300);
 	});
-	setupUploadZone(status);
+	setupUploadZone(status, fetchMedia);
 	fetchMedia();
 })();
 
 
-
-// Upload zone handler
-function setupUploadZone(status) {
+function setupUploadZone(status, fetchMedia) {
 	const zone = document.getElementById('tdmedia-upload-zone');
+	const overlay = document.getElementById('tdmedia-uploading-overlay');
+	const overlayBar = document.getElementById('tdmedia-progress-bar-inner-overlay');
+	const toolbarWrapper = document.getElementById('tdmedia-progress-wrapper');
+	const toolbarBar = document.getElementById('tdmedia-progress-bar-inner');
 
-	['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+	// Ensure drag events are handled only on the drop zone
+	['dragenter', 'dragover'].forEach(eventName => {
 		zone.addEventListener(eventName, e => {
 			e.preventDefault();
 			e.stopPropagation();
+			zone.classList.add('drag-over');
 		});
 	});
 
-	['dragenter', 'dragover'].forEach(eventName => {
-		zone.addEventListener(eventName, () => zone.classList.add('drag-over'));
-	});
 	['dragleave', 'drop'].forEach(eventName => {
-		zone.addEventListener(eventName, () => zone.classList.remove('drag-over'));
+		zone.addEventListener(eventName, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			zone.classList.remove('drag-over');
+		});
 	});
 
 	zone.addEventListener('drop', async e => {
+		e.preventDefault();
+		e.stopPropagation();
 		const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
-
-		if (files.length === 0) {
-			console.warn('[TDMEDIA] No valid image files dropped.');
-			return;
-		}
+		if (files.length === 0) return;
 
 		status.textContent = `Uploading ${files.length} image(s)…`;
 
-		for (const file of files) {
+		document.body.classList.add('tdmedia-uploading');
+		overlay.style.display = 'flex';
+		toolbarWrapper.style.display = 'block';
+		overlayBar.style.width = '0%';
+		toolbarBar.style.width = '0%';
+
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
 			const formData = new FormData();
 			formData.append('file', file);
 			formData.append('title', file.name);
 
 			try {
-				const result = await wp.apiFetch({
+				await wp.apiFetch({
 					path: '/wp/v2/media',
 					method: 'POST',
 					body: formData,
@@ -225,13 +256,20 @@ function setupUploadZone(status) {
 						'Content-Disposition': `attachment; filename="${file.name}"`
 					}
 				});
-				console.log('[TDMEDIA] Uploaded:', result);
 			} catch (err) {
 				console.error('[TDMEDIA] Upload error:', err);
 			}
+
+			const pct = Math.round(((i + 1) / files.length) * 100);
+			overlayBar.style.width = `${pct}%`;
+			toolbarBar.style.width = `${pct}%`;
 		}
 
+		overlay.style.display = 'none';
+		document.body.classList.remove('tdmedia-uploading');
+		toolbarWrapper.style.display = 'none';
 		status.textContent = 'Upload complete. Refreshing…';
+
 		await fetchMedia();
 	});
 }
