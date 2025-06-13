@@ -41,12 +41,20 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 	wp_enqueue_style( 'media-views' ); // also important for layout
 
 	wp_enqueue_script(
-		'tdmedia-main-js',
-		TDMEDIA_URL . 'assets/tdmedia.js',
-		[ 'wp-element', 'wp-components', 'wp-api-fetch' ],
-		'1.0',
-		true
-	);
+        'tdmedia-colcade',
+        'https://unpkg.com/colcade@0/colcade.js',
+        [],
+        null,
+        true
+    );
+
+    wp_enqueue_script(
+        'tdmedia-main-js',
+        TDMEDIA_URL . 'assets/tdmedia.js',
+        ['tdmedia-colcade', 'wp-element', 'wp-components', 'wp-api-fetch'],
+        '1.0',
+        true
+    );
 
 	wp_enqueue_style(
 		'tdmedia-style',
