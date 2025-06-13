@@ -1,7 +1,7 @@
 (function () {
-	console.log('[TDMEDIA] Booting Flex Row Layout…');
+	console.log('[TDMEDIA] Booting Justified Row Masonry Layout…');
 
-	// Format bytes to readable string
+	// Helpers
 	function formatBytes(bytes) {
 		if (!bytes) return '—';
 		const units = ['B', 'KB', 'MB'];
@@ -9,17 +9,15 @@
 		return `${(bytes / 1024 ** i).toFixed(0)} ${units[i]}`;
 	}
 
-	// Format date as 'Jun 13, 2024'
 	function formatDate(dateString) {
 		const d = new Date(dateString);
 		return d.toLocaleDateString('en-US', {
 			month: 'short',
 			day: 'numeric',
-			year: 'numeric',
+			year: 'numeric'
 		});
 	}
 
-	// Setup layout
 	const app = document.getElementById('tdmedia-app');
 	if (!app) return;
 
@@ -31,7 +29,7 @@
 		<div id="tdmedia-upload-zone" class="tdmedia-upload-zone">
 			Drag & drop images here to upload
 		</div>
-		<div id="tdmedia-grid" class="tdmedia-flex-grid"></div>
+		<div id="tdmedia-grid"></div>
 	`;
 
 	const grid = document.getElementById('tdmedia-grid');
@@ -45,8 +43,10 @@
 			const response = await wp.apiFetch({
 				path: '/wp/v2/media?per_page=100&orderby=date&order=desc&_fields=id,title,source_url,media_type,mime_type,media_details,date'
 			});
-
 			const images = response.filter(item => item.mime_type?.startsWith('image/'));
+
+			const photoItems = [];
+
 			for (const item of images) {
 				const { id, source_url, title, mime_type, media_details, date } = item;
 				const meta = await wp.apiFetch({ path: `/wp/v2/media/${id}` });
@@ -74,58 +74,107 @@
 					finalSize = scaledSizeBytes;
 				}
 
-				const el = document.createElement('div');
-				el.className = 'tdmedia-item';
-				el.innerHTML = `
-					<div class="tdmedia-img-wrapper" style="aspect-ratio: ${media_details.width} / ${media_details.height}">
-						<img src="${finalUrl}" alt="${title.rendered || 'Image'}" loading="lazy" />
-					</div>
-					<div class="tdmedia-overlay">
-						<div class="tdmedia-title">${title.rendered || '(No title)'}</div>
-						<div>ID: ${id}</div>
-						<div>Type: ${finalLabel} — ${mime_type}</div>
-						<div>Size: ${media_details.width}×${media_details.height}</div>
-						<div>File: ${formatBytes(finalSize)}</div>
-						<div>Uploaded: ${formatDate(date)}</div>
-					</div>
-				`;
-
-				el.querySelector('img').addEventListener('load', e => {
-                    e.target.classList.add('loaded');
-                });
-
-				el.addEventListener('click', () => {
-					const frame = wp.media({
-						frame: 'select',
-						title: 'Edit Media Item',
-						button: { text: 'Close' },
-						multiple: false,
-						library: { type: 'image' }
-					});
-					frame.on('open', () => {
-						const selection = frame.state().get('selection');
-						const attachment = wp.media.attachment(id);
-						attachment.fetch();
-						selection.add(attachment);
-					});
-					frame.open();
+				photoItems.push({
+					id, title, mime_type, finalUrl, finalLabel, finalSize, date,
+					width: media_details.width,
+					height: media_details.height
 				});
-
-				grid.appendChild(el);
 			}
 
-			status.textContent = `${images.length} images loaded.`;
+			layoutRows(photoItems);
+			status.textContent = `${photoItems.length} images loaded.`;
 		} catch (err) {
 			console.error('[TDMEDIA] Error loading media:', err);
 			status.textContent = 'Error loading media.';
 		}
 	}
 
+	function layoutRows(items) {
+		grid.innerHTML = '';
+		const containerWidth = grid.clientWidth;
+		const targetHeight = 400;
+		const gap = 10;
+
+		let row = [];
+		let rowAspectSum = 0;
+
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const aspect = item.width / item.height;
+
+			row.push(item);
+			rowAspectSum += aspect;
+
+			const rowHeight = (containerWidth - (row.length - 1) * gap) / rowAspectSum;
+
+			if (rowHeight < targetHeight || i === items.length - 1) {
+				renderRow(row, rowHeight < targetHeight ? rowHeight : targetHeight);
+				row = [];
+				rowAspectSum = 0;
+			}
+		}
+	}
+
+	function renderRow(row, height) {
+		const rowEl = document.createElement('div');
+		rowEl.className = 'tdmedia-row';
+		rowEl.style.display = 'flex';
+		rowEl.style.gap = '10px';
+		rowEl.style.marginBottom = '1rem';
+
+		for (const img of row) {
+			const width = (img.width / img.height) * height;
+			const wrapper = document.createElement('div');
+			wrapper.className = 'tdmedia-item';
+			wrapper.style.flex = `0 0 ${width}px`;
+
+			wrapper.innerHTML = `
+				<div class="tdmedia-img-wrapper" style="aspect-ratio: ${img.width} / ${img.height}">
+					<img src="${img.finalUrl}" alt="${img.title.rendered || 'Image'}" loading="lazy" />
+				</div>
+				<div class="tdmedia-overlay">
+					<div class="tdmedia-title">${img.title.rendered || '(No title)'}</div>
+					<div>ID: ${img.id}</div>
+					<div>Type: ${img.finalLabel} — ${img.mime_type}</div>
+					<div>Size: ${img.width}×${img.height}</div>
+					<div>File: ${formatBytes(img.finalSize)}</div>
+					<div>Uploaded: ${formatDate(img.date)}</div>
+				</div>
+			`;
+
+			wrapper.querySelector('img').addEventListener('load', e => {
+				e.target.classList.add('loaded');
+			});
+
+			wrapper.addEventListener('click', () => {
+				const frame = wp.media({
+					frame: 'select',
+					title: 'Edit Media Item',
+					button: { text: 'Close' },
+					multiple: false,
+					library: { type: 'image' }
+				});
+				frame.on('open', () => {
+					const selection = frame.state().get('selection');
+					const attachment = wp.media.attachment(img.id);
+					attachment.fetch();
+					selection.add(attachment);
+				});
+				frame.open();
+			});
+
+			rowEl.appendChild(wrapper);
+		}
+
+		grid.appendChild(rowEl);
+	}
+
 	document.getElementById('tdmedia-refresh').addEventListener('click', fetchMedia);
 	window.addEventListener('resize', () => {
-		grid.style.gap = '1rem'; // Trigger reflow
+		clearTimeout(window.__tdmedia_resize_timeout);
+		window.__tdmedia_resize_timeout = setTimeout(fetchMedia, 300);
 	});
-	setupUploadZone();
+	setupUploadZone(status);
 	fetchMedia();
 })();
 
