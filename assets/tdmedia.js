@@ -46,6 +46,7 @@
 	app.innerHTML = `
         <div class="tdmedia-toolbar">
             <button id="tdmedia-refresh">Refresh</button>
+            <input type="search" id="tdmedia-search" placeholder="Search images…" style="flex: 1; margin: 0 1rem; padding: 0.5rem;">
             <span id="tdmedia-status">Ready.</span>
         </div>
 
@@ -89,6 +90,8 @@
 	const grid = document.getElementById('tdmedia-grid');
 	const status = document.getElementById('tdmedia-status');
 
+    let photoItems = [];
+
 	async function fetchMedia() {
         showLoading();
 		status.textContent = 'Loading media…';
@@ -104,7 +107,7 @@
                 images.map(img => wp.apiFetch({ path: `/wp/v2/media/${img.id}` }))
             );
 
-            const photoItems = images.map((item, i) => {
+            photoItems = images.map((item, i) => {
                 const meta = metaResponses[i];
                 const { id, source_url, title, mime_type, media_details, date } = item;
 
@@ -138,15 +141,6 @@
                 console.log('[TDMEDIA] Raw caption:', meta.caption?.rendered);
                 console.log('[TDMEDIA] Cleaned caption:', caption);
 
-                const rawDescription = meta?.description?.rendered || '';
-                const isDefaultDesc = rawDescription.includes('<img') || rawDescription.includes('<a href=');
-                const description = isDefaultDesc ? '' : stripHTMLTags(rawDescription);
-
-                // Optional: log if it looks auto-generated
-                if (isDefaultDesc) {
-                    console.warn('[TDMEDIA] Description appears auto-generated:', description);
-                }
-
                 return {
                     id,
                     title,
@@ -157,7 +151,6 @@
                     date,
                     alt_text: alt,
                     caption: caption,
-                    description: isDefaultDesc ? '' : description.trim(),
                     width: media_details.width,
                     height: media_details.height
                 };
@@ -165,6 +158,7 @@
             });
 
 
+            window.tdmediaAllItems = photoItems;
 			layoutRows(photoItems);
 			status.textContent = `${photoItems.length} images loaded.`;
 		} catch (err) {
@@ -173,8 +167,66 @@
 		} finally {
             hideLoading();
         }
+
+        setupSearchInput(photoItems);
         
 	}
+
+
+    // new search feature
+    function setupSearchInput(photoItemsRef) {
+        const input = document.getElementById('tdmedia-search');
+        if (!input) {
+            console.warn('[TDMEDIA] Search input not found, skipping setup.');
+            return;
+        }
+
+        console.log('[TDMEDIA] Search input found. Wiring up live search handler…');
+
+        let searchTimeout = null;
+
+        input.addEventListener('input', () => {
+            const rawValue = input.value;
+            console.log(`[TDMEDIA] Search typed: "${rawValue}"`);
+
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const query = rawValue.trim().toLowerCase();
+
+                if (query.length < 3) {
+                    console.log('[TDMEDIA] Search input < 3 characters, restoring full grid');
+                    layoutRows(photoItemsRef); // Show all
+                    return;
+                }
+
+                console.log(`[TDMEDIA] Running search for: "${query}"`);
+
+                const filtered = photoItemsRef.filter(item => {
+                    const fields = [
+                        item?.title?.rendered || '',
+                        item?.caption || '',
+                        item?.alt_text || '',
+                        item?.description || ''
+                    ];
+
+                    const match = fields.some(field =>
+                        field.toLowerCase().includes(query)
+                    );
+
+                    if (match) {
+                        console.log(`[TDMEDIA] Match found in item ID ${item.id}:`, fields);
+                    }
+
+                    return match;
+                });
+
+                console.log(`[TDMEDIA] Found ${filtered.length} matches for "${query}"`);
+                layoutRows(filtered);
+            }, 300);
+        });
+    }
+
+
 
 	function layoutRows(items) {
 		grid.innerHTML = '';

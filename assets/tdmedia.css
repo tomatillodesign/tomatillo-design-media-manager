@@ -305,6 +305,17 @@ body.tdmedia-uploading {
 	font-size: 0.9rem;
 }
 
+#tdmedia-refresh {
+	padding: 0.5em 1em;
+	background: var(--yak-color-primary, #2363e0);
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background 0.2s ease;
+	font-size: 0.9rem;
+}
+
 .tdmedia-actions button:hover {
 	background: #1b4db2;
 }
