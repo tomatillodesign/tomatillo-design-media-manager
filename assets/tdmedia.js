@@ -21,6 +21,25 @@
 		});
 	}
 
+    function stripHTMLTags(html) {
+        if (!html) return '';
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        return div.textContent || div.innerText || '';
+    }
+
+    function stripOuterPTagsOnly(str) {
+        if (!str) return '';
+        const trimmed = str.trim();
+
+        // Match only if the entire string is wrapped in a single <p>...</p>
+        const match = trimmed.match(/^<p>(.*?)<\/p>$/i);
+        return match ? match[1].trim() : trimmed;
+    }
+
+
+
+
 	const app = document.getElementById('tdmedia-app');
 	if (!app) return;
 
@@ -77,7 +96,7 @@
 
 		try {
 			const response = await wp.apiFetch({
-				path: '/wp/v2/media?per_page=100&orderby=date&order=desc&_fields=id,title,source_url,media_type,mime_type,media_details,date'
+				path: '/wp/v2/media?per_page=100&orderby=date&order=desc&_fields=id,title,source_url,media_type,mime_type,media_details,date,alt_text,caption,description'
 			});
 			const images = response.filter(item => item.mime_type?.startsWith('image/'));
 
@@ -112,11 +131,37 @@
                     finalSize = scaledSizeBytes;
                 }
 
+                const alt = stripHTMLTags(meta?.alt_text || '');
+                const caption = stripOuterPTagsOnly(meta.caption?.rendered || '');
+
+                console.log('[TDMEDIA] ALT:', alt);
+                console.log('[TDMEDIA] Raw caption:', meta.caption?.rendered);
+                console.log('[TDMEDIA] Cleaned caption:', caption);
+
+                const rawDescription = meta?.description?.rendered || '';
+                const isDefaultDesc = rawDescription.includes('<img') || rawDescription.includes('<a href=');
+                const description = isDefaultDesc ? '' : stripHTMLTags(rawDescription);
+
+                // Optional: log if it looks auto-generated
+                if (isDefaultDesc) {
+                    console.warn('[TDMEDIA] Description appears auto-generated:', description);
+                }
+
                 return {
-                    id, title, mime_type, finalUrl, finalLabel, finalSize, date,
+                    id,
+                    title,
+                    mime_type,
+                    finalUrl,
+                    finalLabel,
+                    finalSize,
+                    date,
+                    alt_text: alt,
+                    caption: caption,
+                    description: isDefaultDesc ? '' : description.trim(),
                     width: media_details.width,
                     height: media_details.height
                 };
+
             });
 
 
@@ -193,6 +238,8 @@
                 const existing = document.getElementById('tdmedia-modal');
                 if (existing) existing.remove();
 
+                console.log('[TDMEDIA] Opening modal for image ID:', img.id);
+
                 // Create modal wrapper
                 const modal = document.createElement('div');
                 modal.id = 'tdmedia-modal';
@@ -213,13 +260,115 @@
                                 <li><strong>File:</strong> ${formatBytes(img.finalSize)}</li>
                                 <li><strong>Uploaded:</strong> ${formatDate(img.date)}</li>
                             </ul>
-                            <button id="tdmedia-close-modal" class="tdmedia-close-btn">Close</button>
+                            
+                            <div class="tdmedia-actions">
+                                <button type="button" id="tdmedia-copy-url">Copy Image URL</button>
+                                <a id="tdmedia-download-link" href="#" download target="_blank" rel="noopener">
+                                    <button type="button">Download Image</button>
+                                </a>
+                            </div>
+
+                            <form id="tdmedia-meta-form">
+                                <div class="tdmedia-form-group">
+                                    <label for="tdmedia-alt">Alt Text</label>
+                                    <input type="text" id="tdmedia-alt" name="alt_text" />
+                                </div>
+
+                                <div class="tdmedia-form-group">
+                                    <label for="tdmedia-caption">Caption</label>
+                                    <textarea id="tdmedia-caption" name="caption" rows="2"></textarea>
+                                </div>
+
+                                <div class="tdmedia-close-modal-wrapper">
+                                    <button type="submit" id="tdmedia-save-meta">Save Metadata</button>
+                                    <button id="tdmedia-close-modal" class="tdmedia-close-btn">Close</button>
+                                </div>
+                                
+                            </form>
+
+                            
                         </div>
                     </div>
                 `;
 
                 // Append and wire close
                 document.body.appendChild(modal);
+
+                    // Log full object to verify fields
+                    console.log('[TDMEDIA] Loaded image object:', img);
+
+                    // Pre-fill fields with metadata
+                    const altInput = document.getElementById('tdmedia-alt');
+                    const captionTextarea = document.getElementById('tdmedia-caption');
+
+                    if (altInput) {
+                        altInput.value = img.alt_text || '';
+                        console.log('[TDMEDIA] Set alt text:', altInput.value);
+                    }
+
+                    if (captionTextarea) {
+                        captionTextarea.value = img.caption || '';
+                        console.log('[TDMEDIA] Set caption:', captionTextarea.value);
+                    }
+
+                    // Inside your showModal() or similar function
+
+                    const copyBtn = document.getElementById('tdmedia-copy-url');
+                    const downloadLink = document.getElementById('tdmedia-download-link');
+                    const currentImageUrl = img.finalUrl;
+
+                    // Set download href
+                    downloadLink.href = currentImageUrl;
+
+                    // Copy handler
+                    copyBtn.addEventListener('click', async () => {
+                        try {
+                            await navigator.clipboard.writeText(currentImageUrl);
+                            copyBtn.textContent = 'Copied!';
+                            setTimeout(() => (copyBtn.textContent = 'Copy Image URL'), 1500);
+                        } catch (err) {
+                            console.error('[TDMEDIA] Failed to copy:', err);
+                            copyBtn.textContent = 'Failed to copy';
+                        }
+                    });
+
+                    console.log('[TDMEDIA] Looking for form fields:', document.getElementById('tdmedia-alt'), document.getElementById('tdmedia-caption'));
+
+                    const form = document.getElementById('tdmedia-meta-form');
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+
+                        const altText = document.getElementById('tdmedia-alt').value.trim();
+                        const caption = document.getElementById('tdmedia-caption').value.trim();
+
+                        // Optional: show saving state
+                        const saveBtn = document.getElementById('tdmedia-save-meta');
+                        saveBtn.disabled = true;
+                        saveBtn.textContent = 'Saving…';
+
+                        try {
+                            const res = await wp.apiFetch({
+                                path: `/wp/v2/media/${img.id}`,
+                                method: 'POST',
+                                data: {
+                                    alt_text: altText,
+                                    caption: caption,
+                                }
+                            });
+                            console.log('[TDMEDIA] Saved meta:', res);
+                            saveBtn.textContent = 'Saved!';
+                            setTimeout(() => {
+                                saveBtn.disabled = false;
+                                saveBtn.textContent = 'Save Changes';
+                            }, 1500);
+                        } catch (err) {
+                            console.error('[TDMEDIA] Failed to save:', err);
+                            saveBtn.textContent = 'Error';
+                            saveBtn.disabled = false;
+                        }
+                    });
+
+
                 modal.querySelector('.tdmedia-modal-overlay').addEventListener('click', () => modal.remove());
                 modal.querySelector('#tdmedia-close-modal').addEventListener('click', () => modal.remove());
             });
