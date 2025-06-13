@@ -37,7 +37,36 @@
         return match ? match[1].trim() : trimmed;
     }
 
+    function startBatchRender(items) {
+        grid.innerHTML = '';
+        currentBatchIndex = 0;
+        currentBatchItems = items;
+        if (batchInterval) clearInterval(batchInterval);
 
+        const total = items.length;
+        const BATCH_SIZE = 20;
+        const INTERVAL_MS = 1200;
+
+        console.log(`[TDMEDIA] Starting batch rendering: ${total} items`);
+
+        function renderNextBatch() {
+            const slice = currentBatchItems.slice(currentBatchIndex, currentBatchIndex + BATCH_SIZE);
+            if (slice.length === 0) {
+                clearInterval(batchInterval);
+                batchInterval = null;
+                status.textContent = `Loaded all ${total} images.`;
+                return;
+            }
+
+            console.log(`[TDMEDIA] Rendering batch from ${currentBatchIndex} to ${currentBatchIndex + BATCH_SIZE}`);
+            layoutRows(slice, true);
+            currentBatchIndex += BATCH_SIZE;
+            status.textContent = `Loaded ${Math.min(currentBatchIndex, total)} of ${total}…`;
+        }
+
+        renderNextBatch(); // First batch immediately
+        batchInterval = setInterval(renderNextBatch, INTERVAL_MS);
+    }
 
 
 	const app = document.getElementById('tdmedia-app');
@@ -91,6 +120,10 @@
 	const status = document.getElementById('tdmedia-status');
 
     let photoItems = [];
+    let currentBatchIndex = 0;
+    let currentBatchItems = [];
+    const BATCH_SIZE = 20;
+    let batchInterval = null;
 
 	async function fetchMedia() {
         showLoading();
@@ -157,10 +190,18 @@
 
             });
 
-
+            // Prep batch rendering
             window.tdmediaAllItems = photoItems;
-			layoutRows(photoItems);
-			status.textContent = `${photoItems.length} images loaded.`;
+            currentBatchItems = photoItems;
+            currentBatchIndex = 0;
+
+            // Clear grid for fresh layout
+            grid.innerHTML = '';
+            status.textContent = `Rendering ${photoItems.length} images in batches…`;
+
+            // Kick off batch rendering
+            startBatchRender(photoItems);
+
 		} catch (err) {
 			console.error('[TDMEDIA] Error loading media:', err);
 			status.textContent = 'Error loading media.';
@@ -195,7 +236,7 @@
 
                 if (query.length < 3) {
                     console.log('[TDMEDIA] Search input < 3 characters, restoring full grid');
-                    layoutRows(photoItemsRef); // Show all
+                    layoutRows(photoItemsRef, true); // Show all
                     return;
                 }
 
@@ -221,38 +262,46 @@
                 });
 
                 console.log(`[TDMEDIA] Found ${filtered.length} matches for "${query}"`);
-                layoutRows(filtered);
+                if (batchInterval) {
+                    clearInterval(batchInterval);
+                    batchInterval = null;
+                }
+                layoutRows(filtered, false);
             }, 300);
         });
     }
 
 
 
-	function layoutRows(items) {
-		grid.innerHTML = '';
-		const containerWidth = grid.clientWidth;
-		const targetHeight = 400;
-		const gap = 16;
+    function layoutRows(items, append = false) {
+        if (!append) {
+            grid.innerHTML = '';
+        }
 
-		let row = [];
-		let rowAspectSum = 0;
+        const containerWidth = grid.clientWidth;
+        const targetHeight = 400;
+        const gap = 16;
 
-		for (let i = 0; i < items.length; i++) {
-			const item = items[i];
-			const aspect = item.width / item.height;
+        let row = [];
+        let rowAspectSum = 0;
 
-			row.push(item);
-			rowAspectSum += aspect;
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const aspect = item.width / item.height;
 
-			const rowHeight = (containerWidth - (row.length - 1) * gap) / rowAspectSum;
+            row.push(item);
+            rowAspectSum += aspect;
 
-			if (rowHeight < targetHeight || i === items.length - 1) {
-				renderRow(row, rowHeight < targetHeight ? rowHeight : targetHeight);
-				row = [];
-				rowAspectSum = 0;
-			}
-		}
-	}
+            const rowHeight = (containerWidth - (row.length - 1) * gap) / rowAspectSum;
+
+            if (rowHeight < targetHeight || i === items.length - 1) {
+                renderRow(row, rowHeight < targetHeight ? rowHeight : targetHeight);
+                row = [];
+                rowAspectSum = 0;
+            }
+        }
+    }
+
 
 	function renderRow(row, height) {
 		const rowEl = document.createElement('div');
@@ -438,6 +487,11 @@
 		window.__tdmedia_resize_timeout = setTimeout(fetchMedia, 300);
 	});
 	setupUploadZone(status, fetchMedia);
+    
+    if (batchInterval) {
+        clearInterval(batchInterval);
+        batchInterval = null;
+    }
 	fetchMedia();
 
 })();
