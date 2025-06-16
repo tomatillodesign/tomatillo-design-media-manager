@@ -18,6 +18,9 @@ const tdMedia = {
 	},
 };
 
+// Store all loaded items globally for modal navigation
+let tdmediaItems = [];
+
 
 /* A few helpers ----- */
 function getFlexBasis(width, height, targetRowHeight = 280) {
@@ -25,26 +28,33 @@ function getFlexBasis(width, height, targetRowHeight = 280) {
 	return +(targetRowHeight * aspectRatio).toFixed(2);
 }
 
-function createTdMediaItem(item, basis) {
-	console.log(item);
+function formatDate(dateString) {
+    const d = new Date(dateString);
+    return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    });
+}
 
+
+
+
+
+function createTdMediaItem(item, basis) {
 	const div = document.createElement('div');
 	div.className = 'tdmedia-item';
 	div.style.flexBasis = `${basis}px`;
 	div.style.height = '320px';
 
-	// Get details
 	const width = item.media_details?.width || '—';
 	const height = item.media_details?.height || '—';
-	const sizeKb = item._avif_size_kb || item._webp_size_kb || Math.round((item.media_details?.filesize || 0) / 1024) || '—';
+	const filename = item.title?.rendered || '(No name)';
 	const uploaded = new Date(item.date).toLocaleDateString('en-US', {
 		month: 'short',
 		day: 'numeric',
 		year: 'numeric',
 	});
-
-	const filename = item.title?.rendered || '(No name)';
-	const type = item.mime_type || item.media_type || 'image';
 
 	let displayType = 'Original — ' + (item.mime_type || 'image/jpeg');
 	let fileSizeKb = Math.round((item.media_details?.filesize || 0) / 1024) || '—';
@@ -76,149 +86,189 @@ function createTdMediaItem(item, basis) {
 		</div>
 	`;
 
-    // Strip outer <p> tags from caption
-    const rawCaption = item.caption?.rendered || '';
-    const cleanCaption = rawCaption.replace(/^<p>(.*?)<\/p>$/i, '$1');
-
-    // Hover content injection
-    const overlay = div.querySelector('.tdmedia-overlay');
-    if (overlay) {
-        const metaDetails = document.createElement('div');
-        metaDetails.className = 'tdmedia-meta-extras';
-        metaDetails.style.marginTop = '0.5rem';
-        metaDetails.innerHTML = `
-            <div><strong>Alt:</strong> ${item.alt_text || '<em>none</em>'}</div>
-            <div class="tdmedia-overlay-caption"><strong>Caption:</strong> ${cleanCaption || '<em>none</em>'}</div>
-        `;
-        overlay.appendChild(metaDetails);
-    }
-
-	// Modal click handler
-	div.addEventListener('click', () => {
-		document.getElementById('tdmedia-modal')?.remove();
-
-		console.log('[TDMEDIA] Opening modal for image ID:', item.id);
-
-		const modal = document.createElement('div');
-		modal.id = 'tdmedia-modal';
-		modal.innerHTML = `
-			<div class="tdmedia-modal-overlay"></div>
-			<div class="tdmedia-modal-content" role="dialog" aria-modal="true">
-				<div class="tdmedia-modal-left">
-					<div class="tdmedia-modal-image">
-						<img src="${item._avif_url || item._webp_url || item.source_url}" alt="${item.alt_text || filename}" />
-					</div>
-				</div>
-				<div class="tdmedia-modal-right">
-					<h2>${filename}</h2>
-					<ul class="tdmedia-meta-list">
-						<li><strong>ID:</strong> ${item.id}</li>
-						<li><strong>Type:</strong> ${displayType}</li>
-						<li><strong>Size:</strong> ${width}×${height}</li>
-						<li><strong>File:</strong> ${fileSizeKb} KB</li>
-						<li><strong>Uploaded:</strong> ${uploaded}</li>
-						<li><strong>URL:</strong> <span class="clb-pre">${item._avif_url || item._webp_url || item.source_url}</span></li>
-						<li><strong>Original File:</strong> <span class="clb-pre">${item.source_url}</span></li>
-					</ul>
-					<div class="tdmedia-actions">
-						<button type="button" id="tdmedia-copy-url">Copy Image URL</button>
-						<a id="tdmedia-download-link" href="${item.source_url}" download target="_blank" rel="noopener">
-							<button type="button">Download Original File</button>
-						</a>
-					</div>
-                    <form id="tdmedia-meta-form">
-                        <div class="tdmedia-form-group">
-                            <label for="tdmedia-alt">Alt Text</label>
-                            <input type="text" id="tdmedia-alt" name="alt_text" />
-                        </div>
-
-                        <div class="tdmedia-form-group">
-                            <label for="tdmedia-caption">Caption</label>
-                            <textarea id="tdmedia-caption" name="caption" rows="2"></textarea>
-                        </div>
-
-                        <div class="tdmedia-close-modal-wrapper">
-                            <button type="submit" id="tdmedia-save-meta">Save Metadata</button>
-                            <button id="tdmedia-close-modal" type="button" class="tdmedia-close-btn">Close</button>
-                        </div>
-                    </form>
-				</div>
-			</div>
+	// Optional alt + caption hover
+	const rawCaption = item.caption?.rendered || '';
+	const cleanCaption = rawCaption.replace(/^<p>(.*?)<\/p>$/i, '$1');
+	const overlay = div.querySelector('.tdmedia-overlay');
+	if (overlay) {
+		const metaDetails = document.createElement('div');
+		metaDetails.className = 'tdmedia-meta-extras';
+		metaDetails.style.marginTop = '0.5rem';
+		metaDetails.innerHTML = `
+			<div><strong>Alt:</strong> ${item.alt_text || '<em>none</em>'}</div>
+			<div class="tdmedia-overlay-caption"><strong>Caption:</strong> ${cleanCaption || '<em>none</em>'}</div>
 		`;
+		overlay.appendChild(metaDetails);
+	}
 
-		document.body.appendChild(modal);
-        console.log('[TDMEDIA] Modal injected:', modal);
-        console.log('[TDMEDIA] Modal HTML:', modal.outerHTML);
-        document.getElementById('tdmedia-alt').value = item.alt_text || '';
-        const rawCaption = item.caption?.rendered || '';
-        const stripped = rawCaption.trim().replace(/^<p>([\s\S]*?)<\/p>$/i, '$1');
-        document.getElementById('tdmedia-caption').value = stripped;
-
-
-        document.getElementById('tdmedia-meta-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const altText = document.getElementById('tdmedia-alt').value.trim();
-            const caption = document.getElementById('tdmedia-caption').value.trim();
-            const saveBtn = document.getElementById('tdmedia-save-meta');
-
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving…';
-
-            try {
-                const res = await wp.apiFetch({
-                    path: `/wp/v2/media/${item.id}`,
-                    method: 'POST',
-                    data: {
-                        alt_text: altText,
-                        caption: caption,
-                    }
-                });
-                console.log('[TDMEDIA] Metadata saved:', res);
-                saveBtn.textContent = 'Saved!';
-                setTimeout(() => {
-                    saveBtn.textContent = 'Save Metadata';
-                    saveBtn.disabled = false;
-                }, 1500);
-            } catch (err) {
-                console.error('[TDMEDIA] Metadata save failed:', err);
-                saveBtn.textContent = 'Error';
-                saveBtn.disabled = false;
-            }
-        });
-
-
-		const copyBtn = document.getElementById('tdmedia-copy-url');
-		copyBtn?.addEventListener('click', async () => {
-			try {
-				await navigator.clipboard.writeText(item._avif_url || item._webp_url || item.source_url);
-				copyBtn.textContent = 'Copied!';
-				setTimeout(() => (copyBtn.textContent = 'Copy Image URL'), 1500);
-			} catch (err) {
-				console.error('[TDMEDIA] Failed to copy:', err);
-				copyBtn.textContent = 'Failed to copy';
-			}
-		});
-
-		modal.querySelector('.tdmedia-modal-overlay')?.addEventListener('click', () => modal.remove());
-		document.addEventListener('keydown', function escClose(e) {
-			if (e.key === 'Escape') {
-				modal.remove();
-				document.removeEventListener('keydown', escClose);
-			}
-		});
-
-        // Close modal on "Close" button click
-        modal.querySelector('#tdmedia-close-modal')?.addEventListener('click', () => {
-            modal.remove();
-        });
-
+	// 🔥 Modal click: clean and delegated
+	div.addEventListener('click', () => {
+		console.log('[TDMEDIA] Opening modal for ID:', item.id);
+		window.tdmediaCurrentIndex = tdmediaItems.findIndex(i => i.id === item.id);
+		openTdMediaModal(item);
 	});
 
 	return div;
-
 }
 
+
+
+function openTdMediaModal(item) {
+	console.log('[TDMEDIA] Injecting modal for:', item);
+
+	// Remove any existing modal
+	document.getElementById('tdmedia-modal')?.remove();
+
+	const filename = item.title?.rendered || '(No name)';
+	const rawCaption = item.caption?.rendered || '';
+	const strippedCaption = rawCaption.trim().replace(/^<p>([\s\S]*?)<\/p>$/i, '$1');
+	const width = item.media_details?.width || '—';
+	const height = item.media_details?.height || '—';
+	const uploaded = new Date(item.date).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	});
+
+	let displayType = 'Original — ' + (item.mime_type || 'image/jpeg');
+	let fileSizeKb = Math.round((item.media_details?.filesize || 0) / 1024) || '—';
+	let imageUrl = item.source_url;
+
+	if (item._avif_url) {
+		displayType = 'AVIF';
+		fileSizeKb = item._avif_size_kb || fileSizeKb;
+		imageUrl = item._avif_url;
+	} else if (item._webp_url) {
+		displayType = 'WebP';
+		fileSizeKb = item._webp_size_kb || fileSizeKb;
+		imageUrl = item._webp_url;
+	}
+
+	const modal = document.createElement('div');
+	modal.id = 'tdmedia-modal';
+	modal.innerHTML = `
+		<div class="tdmedia-modal-overlay"></div>
+		<div class="tdmedia-modal-content" role="dialog" aria-modal="true">
+			<div class="tdmedia-modal-left">
+				<div class="tdmedia-modal-image">
+					<img src="${imageUrl}" alt="${item.alt_text || filename}" />
+				</div>
+			</div>
+			<div class="tdmedia-modal-right">
+				<h2>${filename}</h2>
+				<ul class="tdmedia-meta-list">
+					<li><strong>ID:</strong> ${item.id}</li>
+					<li><strong>Type:</strong> ${displayType}</li>
+					<li><strong>Size:</strong> ${width}×${height}</li>
+					<li><strong>File:</strong> ${fileSizeKb} KB</li>
+					<li><strong>Uploaded:</strong> ${uploaded}</li>
+					<li><strong>URL:</strong> <span class="clb-pre">${imageUrl}</span></li>
+					<li><strong>Original File:</strong> <span class="clb-pre">${item.source_url}</span></li>
+				</ul>
+
+				<div class="tdmedia-actions">
+					<button type="button" id="tdmedia-copy-url">Copy Image URL</button>
+					<a id="tdmedia-download-link" href="${item.source_url}" download target="_blank" rel="noopener">
+						<button type="button">Download Original File</button>
+					</a>
+				</div>
+
+				<form id="tdmedia-meta-form">
+					<div class="tdmedia-form-group">
+						<label for="tdmedia-alt">Alt Text</label>
+						<input type="text" id="tdmedia-alt" name="alt_text" value="${item.alt_text || ''}" />
+					</div>
+
+					<div class="tdmedia-form-group">
+						<label for="tdmedia-caption">Caption</label>
+						<textarea id="tdmedia-caption" name="caption" rows="2">${strippedCaption}</textarea>
+					</div>
+
+					<div class="tdmedia-close-modal-wrapper">
+						<button type="submit" id="tdmedia-save-meta">Save Metadata</button>
+						<button id="tdmedia-close-modal" type="button" class="tdmedia-close-btn">Close</button>
+					</div>
+				</form>
+
+				<div class="tdmedia-modal-nav">
+					<button id="tdmedia-prev" ${window.tdmediaCurrentIndex === 0 ? 'disabled' : ''}>&larr; Prev</button>
+					<button id="tdmedia-next" ${window.tdmediaCurrentIndex === tdmediaItems.length - 1 ? 'disabled' : ''}>Next &rarr;</button>
+				</div>
+			</div>
+		</div>
+	`;
+
+	document.body.appendChild(modal);
+
+	// Close actions
+	const closeModal = () => modal.remove();
+	modal.querySelector('.tdmedia-modal-overlay')?.addEventListener('click', closeModal);
+	modal.querySelector('#tdmedia-close-modal')?.addEventListener('click', closeModal);
+	document.addEventListener('keydown', function escClose(e) {
+		if (e.key === 'Escape') {
+			closeModal();
+			document.removeEventListener('keydown', escClose);
+		}
+	});
+
+	// Copy URL
+	const copyBtn = document.getElementById('tdmedia-copy-url');
+	copyBtn?.addEventListener('click', async () => {
+		try {
+			await navigator.clipboard.writeText(imageUrl);
+			copyBtn.textContent = 'Copied!';
+			setTimeout(() => (copyBtn.textContent = 'Copy Image URL'), 1500);
+		} catch (err) {
+			console.error('[TDMEDIA] Copy failed:', err);
+			copyBtn.textContent = 'Failed to copy';
+		}
+	});
+
+	// Save alt/caption
+	document.getElementById('tdmedia-meta-form')?.addEventListener('submit', async (e) => {
+		e.preventDefault();
+		const alt = document.getElementById('tdmedia-alt').value.trim();
+		const caption = document.getElementById('tdmedia-caption').value.trim();
+		const saveBtn = document.getElementById('tdmedia-save-meta');
+		saveBtn.disabled = true;
+		saveBtn.textContent = 'Saving…';
+
+		try {
+			const res = await wp.apiFetch({
+				path: `/wp/v2/media/${item.id}`,
+				method: 'POST',
+				data: {
+					alt_text: alt,
+					caption: caption,
+				}
+			});
+			console.log('[TDMEDIA] Metadata saved:', res);
+			saveBtn.textContent = 'Saved!';
+			setTimeout(() => {
+				saveBtn.disabled = false;
+				saveBtn.textContent = 'Save Metadata';
+			}, 1500);
+		} catch (err) {
+			console.error('[TDMEDIA] Save error:', err);
+			saveBtn.textContent = 'Error';
+			saveBtn.disabled = false;
+		}
+	});
+
+	// Prev/Next buttons
+	document.getElementById('tdmedia-prev')?.addEventListener('click', () => {
+		if (window.tdmediaCurrentIndex > 0) {
+			window.tdmediaCurrentIndex--;
+			openTdMediaModal(tdmediaItems[window.tdmediaCurrentIndex]);
+		}
+	});
+	document.getElementById('tdmedia-next')?.addEventListener('click', () => {
+		if (window.tdmediaCurrentIndex < tdmediaItems.length - 1) {
+			window.tdmediaCurrentIndex++;
+			openTdMediaModal(tdmediaItems[window.tdmediaCurrentIndex]);
+		}
+	});
+}
 
 
 
@@ -367,10 +417,10 @@ function init() {
                 return bDate - aDate;
             });
 
-
             renderGrid(merged);
             renderStatus(`Loaded ${merged.length} items (24 fresh, ${cachedItems.length} cached)`);
             startBackgroundLoad(); // hydrates + updates cache
+            tdmediaItems = merged;
         })
         .catch(err => {
             console.error('[TDMEDIA] Failed to load initial 24:', err);

@@ -207,7 +207,6 @@
 }
 
 .tdmedia-actions {
-	margin-bottom: 2rem;
 	display: flex;
 	gap: 1rem;
 	flex-wrap: wrap;
@@ -273,4 +272,38 @@
 
 .tdmedia-overlay-caption p {
 	display: inline;
+}
+
+.tdmedia-modal-right {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	gap: 1rem;
+	height: 100%;
+	overflow-y: auto;
+}
+
+.tdmedia-modal-nav {
+	margin-top: auto;
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.tdmedia-modal-nav button {
+	border: none;
+	background: transparent;
+	padding: 0.6rem 1.2rem;
+	border-radius: 4px;
+	border: 1px solid #aaa;
+	font-size: 0.9rem;
+}
+
+.tdmedia-modal-nav button:hover {
+	opacity: 0.8;
+}
+
+ul.tdmedia-meta-list {
+	margin-top: 0;
+	margin-bottom: 0;
 }
