@@ -4,7 +4,7 @@ const tdMedia = {
 		initialLoadCount: 24,
 		cacheKey: 'tdmedia-cache',
 		cacheMaxAgeMs: 1000 * 60 * 10, // 10 minutes
-        fieldsParam: 'id,title,source_url,_avif_url,_webp_url,modified,date,alt_text,caption,description,_avif_size_kb,_webp_size_kb',
+        fieldsParam: 'id,title,source_url,media_details,_avif_url,_webp_url,modified,date,alt_text,caption,description,_avif_size_kb,_webp_size_kb',
 
 	},
 	state: {
@@ -18,6 +18,213 @@ const tdMedia = {
 	},
 };
 
+
+/* A few helpers ----- */
+function getFlexBasis(width, height, targetRowHeight = 280) {
+	const aspectRatio = width / height;
+	return +(targetRowHeight * aspectRatio).toFixed(2);
+}
+
+function createTdMediaItem(item, basis) {
+	console.log(item);
+
+	const div = document.createElement('div');
+	div.className = 'tdmedia-item';
+	div.style.flexBasis = `${basis}px`;
+	div.style.height = '320px';
+
+	// Get details
+	const width = item.media_details?.width || '—';
+	const height = item.media_details?.height || '—';
+	const sizeKb = item._avif_size_kb || item._webp_size_kb || Math.round((item.media_details?.filesize || 0) / 1024) || '—';
+	const uploaded = new Date(item.date).toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	});
+
+	const filename = item.title?.rendered || '(No name)';
+	const type = item.mime_type || item.media_type || 'image';
+
+	let displayType = 'Original — ' + (item.mime_type || 'image/jpeg');
+	let fileSizeKb = Math.round((item.media_details?.filesize || 0) / 1024) || '—';
+
+	if (item._avif_url) {
+		displayType = 'AVIF';
+		fileSizeKb = item._avif_size_kb || fileSizeKb;
+	} else if (item._webp_url) {
+		displayType = 'WebP';
+		fileSizeKb = item._webp_size_kb || fileSizeKb;
+	}
+
+	div.innerHTML = `
+		<div class="tdmedia-img-wrapper">
+			<img
+				src="${item.source_url}"
+				alt="${item.alt_text || filename}"
+				loading="lazy"
+				decoding="async"
+			/>
+		</div>
+		<div class="tdmedia-overlay">
+			<div class="tdmedia-title">${filename}</div>
+			<div>ID: ${item.id}</div>
+			<div>Type: ${displayType}</div>
+			<div>File: ${fileSizeKb} KB</div>
+			<div>Uploaded: ${uploaded}</div>
+			<div>Source: ${item._td_from_cache ? '🧊 Cache' : '🔥 Fresh'}</div>
+		</div>
+	`;
+
+    // Strip outer <p> tags from caption
+    const rawCaption = item.caption?.rendered || '';
+    const cleanCaption = rawCaption.replace(/^<p>(.*?)<\/p>$/i, '$1');
+
+    // Hover content injection
+    const overlay = div.querySelector('.tdmedia-overlay');
+    if (overlay) {
+        const metaDetails = document.createElement('div');
+        metaDetails.className = 'tdmedia-meta-extras';
+        metaDetails.style.marginTop = '0.5rem';
+        metaDetails.innerHTML = `
+            <div><strong>Alt:</strong> ${item.alt_text || '<em>none</em>'}</div>
+            <div class="tdmedia-overlay-caption"><strong>Caption:</strong> ${cleanCaption || '<em>none</em>'}</div>
+        `;
+        overlay.appendChild(metaDetails);
+    }
+
+	// Modal click handler
+	div.addEventListener('click', () => {
+		document.getElementById('tdmedia-modal')?.remove();
+
+		console.log('[TDMEDIA] Opening modal for image ID:', item.id);
+
+		const modal = document.createElement('div');
+		modal.id = 'tdmedia-modal';
+		modal.innerHTML = `
+			<div class="tdmedia-modal-overlay"></div>
+			<div class="tdmedia-modal-content" role="dialog" aria-modal="true">
+				<div class="tdmedia-modal-left">
+					<div class="tdmedia-modal-image">
+						<img src="${item._avif_url || item._webp_url || item.source_url}" alt="${item.alt_text || filename}" />
+					</div>
+				</div>
+				<div class="tdmedia-modal-right">
+					<h2>${filename}</h2>
+					<ul class="tdmedia-meta-list">
+						<li><strong>ID:</strong> ${item.id}</li>
+						<li><strong>Type:</strong> ${displayType}</li>
+						<li><strong>Size:</strong> ${width}×${height}</li>
+						<li><strong>File:</strong> ${fileSizeKb} KB</li>
+						<li><strong>Uploaded:</strong> ${uploaded}</li>
+						<li><strong>URL:</strong> <span class="clb-pre">${item._avif_url || item._webp_url || item.source_url}</span></li>
+						<li><strong>Original File:</strong> <span class="clb-pre">${item.source_url}</span></li>
+					</ul>
+					<div class="tdmedia-actions">
+						<button type="button" id="tdmedia-copy-url">Copy Image URL</button>
+						<a id="tdmedia-download-link" href="${item.source_url}" download target="_blank" rel="noopener">
+							<button type="button">Download Original File</button>
+						</a>
+					</div>
+                    <form id="tdmedia-meta-form">
+                        <div class="tdmedia-form-group">
+                            <label for="tdmedia-alt">Alt Text</label>
+                            <input type="text" id="tdmedia-alt" name="alt_text" />
+                        </div>
+
+                        <div class="tdmedia-form-group">
+                            <label for="tdmedia-caption">Caption</label>
+                            <textarea id="tdmedia-caption" name="caption" rows="2"></textarea>
+                        </div>
+
+                        <div class="tdmedia-close-modal-wrapper">
+                            <button type="submit" id="tdmedia-save-meta">Save Metadata</button>
+                            <button id="tdmedia-close-modal" type="button" class="tdmedia-close-btn">Close</button>
+                        </div>
+                    </form>
+				</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+        console.log('[TDMEDIA] Modal injected:', modal);
+        console.log('[TDMEDIA] Modal HTML:', modal.outerHTML);
+        document.getElementById('tdmedia-alt').value = item.alt_text || '';
+        const rawCaption = item.caption?.rendered || '';
+        const stripped = rawCaption.trim().replace(/^<p>([\s\S]*?)<\/p>$/i, '$1');
+        document.getElementById('tdmedia-caption').value = stripped;
+
+
+        document.getElementById('tdmedia-meta-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const altText = document.getElementById('tdmedia-alt').value.trim();
+            const caption = document.getElementById('tdmedia-caption').value.trim();
+            const saveBtn = document.getElementById('tdmedia-save-meta');
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            try {
+                const res = await wp.apiFetch({
+                    path: `/wp/v2/media/${item.id}`,
+                    method: 'POST',
+                    data: {
+                        alt_text: altText,
+                        caption: caption,
+                    }
+                });
+                console.log('[TDMEDIA] Metadata saved:', res);
+                saveBtn.textContent = 'Saved!';
+                setTimeout(() => {
+                    saveBtn.textContent = 'Save Metadata';
+                    saveBtn.disabled = false;
+                }, 1500);
+            } catch (err) {
+                console.error('[TDMEDIA] Metadata save failed:', err);
+                saveBtn.textContent = 'Error';
+                saveBtn.disabled = false;
+            }
+        });
+
+
+		const copyBtn = document.getElementById('tdmedia-copy-url');
+		copyBtn?.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(item._avif_url || item._webp_url || item.source_url);
+				copyBtn.textContent = 'Copied!';
+				setTimeout(() => (copyBtn.textContent = 'Copy Image URL'), 1500);
+			} catch (err) {
+				console.error('[TDMEDIA] Failed to copy:', err);
+				copyBtn.textContent = 'Failed to copy';
+			}
+		});
+
+		modal.querySelector('.tdmedia-modal-overlay')?.addEventListener('click', () => modal.remove());
+		document.addEventListener('keydown', function escClose(e) {
+			if (e.key === 'Escape') {
+				modal.remove();
+				document.removeEventListener('keydown', escClose);
+			}
+		});
+
+        // Close modal on "Close" button click
+        modal.querySelector('#tdmedia-close-modal')?.addEventListener('click', () => {
+            modal.remove();
+        });
+
+	});
+
+	return div;
+
+}
+
+
+
+
+
+
+
 /**
  * Init function: called on DOM ready
  */
@@ -26,7 +233,7 @@ function init() {
 	tdMedia.state.startTime = performance.now();
 
 	// Mount app container
-	tdMedia.elements.app = document.getElementById('tdmedia-app');
+	tdMedia.elements.app = document.getElementById('tdmedia-content');
 	tdMedia.elements.app.innerHTML = ''; // Clean slate
 
 	// Create status panel
@@ -34,6 +241,35 @@ function init() {
 	tdMedia.elements.statusPanel.id = 'tdmedia-status';
 	tdMedia.elements.statusPanel.style = 'padding:1rem;background:#f9f9f9;border:1px solid #ccc;margin-bottom:1rem;font-size:14px;';
 	tdMedia.elements.app.appendChild(tdMedia.elements.statusPanel);
+
+    const statusPanel = document.getElementById('tdmedia-status');
+
+    if (statusPanel) {
+        const clearCacheBtn = document.createElement('button');
+        clearCacheBtn.id = 'tdmedia-clear-cache';
+        clearCacheBtn.textContent = '🧹 Clear Cache';
+        clearCacheBtn.style = `
+            margin-left: auto;
+            padding: 0.4rem 0.75rem;
+            font-size: 12px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+        `;
+
+        clearCacheBtn.addEventListener('click', () => {
+            if (confirm('Clear all cached media data? This will force a fresh reload.')) {
+                localStorage.clear();
+                console.log('[TDMEDIA] Local storage cleared.');
+                location.reload();
+            }
+        });
+
+        statusPanel.appendChild(clearCacheBtn);
+    } else {
+        console.warn('[TDMEDIA] No status panel found for Clear Cache button.');
+    }
 
     // Create search box
     // Create search wrapper
@@ -92,7 +328,7 @@ function init() {
 	// Create image grid
 	tdMedia.elements.grid = document.createElement('div');
 	tdMedia.elements.grid.id = 'tdmedia-grid';
-	tdMedia.elements.grid.style = 'display:flex;flex-wrap:wrap;gap:1rem;';
+	tdMedia.elements.grid.style = 'display:flex;flex-wrap:wrap;gap:16px;';
 	tdMedia.elements.app.appendChild(tdMedia.elements.grid);
 
 	// Begin loading
@@ -159,6 +395,8 @@ async function fetchInitialBatch() {
 		const elapsed = (performance.now() - tdMedia.state.startTime).toFixed(0);
 		renderStatus(`Loaded ${items.length} items in ${elapsed}ms`);
 
+        console.log(items);
+
 		renderGrid(items);
 
         // ✅ START BACKGROUND LOAD HERE
@@ -170,45 +408,77 @@ async function fetchInitialBatch() {
 	}
 }
 
-/**
- * Render the media items into the grid
- */
+
+
+
+
 function renderGrid(items) {
-	tdMedia.elements.grid.innerHTML = ''; // Clear existing
+	layoutRows(items, true);
+}
 
-	const getUploadLabel = dateStr => {
-		const uploadDate = new Date(dateStr);
-		const now = new Date();
-		const deltaDays = Math.floor((now - uploadDate) / (1000 * 60 * 60 * 24));
 
-		if (deltaDays < 1) return 'uploaded today';
-		if (deltaDays < 7) return 'uploaded this week';
-		if (deltaDays < 31) return 'uploaded this month';
-		return 'uploaded a while ago';
-	};
 
-	items.forEach(item => {
-		const div = document.createElement('div');
-		div.style = 'width:300px;border:1px solid #ddd;padding:0.5rem;background:#fff;font-size:13px;';
+function layoutRows(items, clear = true) {
+	const grid = tdMedia.elements.grid;
+	if (clear) grid.innerHTML = '';
 
-		const uploadedLabel = item.date ? getUploadLabel(item.date) : '—';
-		const uploadedDate = item.date ? new Date(item.date).toLocaleDateString() : '—';
-		const modifiedDate = item.modified ? new Date(item.modified).toLocaleDateString() : '—';
+	let currentRow = [];
+	let rowWidth = 0;
+	const maxRowWidth = grid.clientWidth || 1000; // fallback
 
-		div.innerHTML = `
-			<img src="${item.source_url}" style="max-width:100%;height:auto;display:block;" alt="">
-			<div style="margin-top:0.5rem;">
-				<strong>${item.title.rendered || '(No title)'}</strong>
-				<span style="color: #999; font-size: 12px;">[${item._td_from_cache ? 'cached' : 'fresh'}]</span>
-			</div>
-			<code>${uploadedLabel}</code><br>
-			<code>Uploaded: ${uploadedDate} | Modified: ${modifiedDate}</code><br>
-			<code>AVIF: ${item._avif_url ? '✅' : '—'} | WebP: ${item._webp_url ? '✅' : '—'}</code>
-		`;
+	const targetRowHeight = 320;
+	const spacing = 16;
 
-		tdMedia.elements.grid.appendChild(div);
+	items.forEach((item, index) => {
+        console.log(item);
+		const w = item.media_details?.width || 1;
+		const h = item.media_details?.height || 1;
+		const aspectRatio = w / h;
+
+		// Ideal height is fixed, width scales by aspect ratio
+		const scaledWidth = targetRowHeight * aspectRatio;
+
+		currentRow.push(item);
+		rowWidth += scaledWidth + spacing;
+
+		// If row is full or last item
+		const isLast = index === items.length - 1;
+		if (rowWidth >= maxRowWidth || isLast) {
+			// Calculate shrink ratio
+			const totalScaled = currentRow.reduce((sum, i) => {
+				const iw = i.media_details?.width || 1;
+				const ih = i.media_details?.height || 1;
+				return sum + (targetRowHeight * (iw / ih));
+			}, 0);
+
+			const shrinkRatio = (maxRowWidth - spacing * (currentRow.length - 1)) / totalScaled;
+
+			const row = document.createElement('div');
+			row.className = 'tdmedia-row';
+
+			currentRow.forEach(i => {
+
+                console.log(i);
+
+				const iw = i.media_details?.width || 1;
+				const ih = i.media_details?.height || 1;
+				const ar = iw / ih;
+				const basis = targetRowHeight * ar * shrinkRatio;
+				row.appendChild(createTdMediaItem(i, basis));
+			});
+
+			grid.appendChild(row);
+
+			// Reset for next row
+			currentRow = [];
+			rowWidth = 0;
+		}
 	});
 }
+
+
+
+
 
 
 /**
@@ -478,6 +748,5 @@ function setupSearchInput() {
 
 
 document.addEventListener('DOMContentLoaded', init);
-
 
 

@@ -25,7 +25,10 @@ add_action( 'admin_menu', function() {
 
 // Render the page shell
 function tdmedia_render_manager_page() {
-	echo '<div id="tdmedia-app"><h1>Tomatillo Media Manager</h1></div>';
+	echo '<div id="tdmedia-app">
+			<h1>Tomatillo Media Manager</h1>
+			<div id="tdmedia-content"></div>
+		</div>';
 }
 
 // Enqueue JS/CSS
