@@ -23,13 +23,38 @@ add_action( 'admin_menu', function() {
 	);
 } );
 
-// Render the page shell
 function tdmedia_render_manager_page() {
-	echo '<div id="tdmedia-app">
+	echo '
+		<div id="tdmedia-app">
 			<h1>Tomatillo Media Manager</h1>
+
+			<!-- Upload Zone -->
+			<div id="tdmedia-upload-zone" class="tdmedia-upload-zone">
+				<p>Drag & drop images here to upload</p>
+			</div>
+
+			<!-- Upload Overlay -->
+			<div id="tdmedia-uploading-overlay" class="tdmedia-uploading-overlay" style="display: none;">
+				<div class="tdmedia-uploading-inner">
+					<div class="clb-tdmedia-uploading-in-progress-text-wrapper"><p>Uploading…</p></div>
+					<div class="tdmedia-progress-bar">
+						<div id="tdmedia-progress-bar-inner-overlay" class="tdmedia-progress-bar-inner"></div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Toolbar Progress -->
+			<div id="tdmedia-progress-wrapper" class="tdmedia-toolbar-progress" style="display: none;">
+				<div class="tdmedia-progress-bar">
+					<div id="tdmedia-progress-bar-inner" class="tdmedia-progress-bar-inner"></div>
+				</div>
+			</div>
+
+			<!-- Main Grid Area -->
 			<div id="tdmedia-content"></div>
 		</div>';
 }
+
 
 // Enqueue JS/CSS
 add_action( 'admin_enqueue_scripts', function( $hook ) {

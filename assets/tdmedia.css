@@ -149,6 +149,7 @@
 	background: #f0f0f0;
 	border-radius: 6px;
 	overflow: hidden;
+	border-radius: 0;
 }
 
 .tdmedia-modal-image img {
@@ -251,6 +252,7 @@
 
 .tdmedia-modal-right h2 {
     margin-top: 0;
+	margin-bottom: 0;
 }
 
 #tdmedia-close-modal {
@@ -306,4 +308,107 @@
 ul.tdmedia-meta-list {
 	margin-top: 0;
 	margin-bottom: 0;
+}
+
+
+
+#tdmedia-upload-zone {
+	border: 2px dashed var(--yak-color-primary, #2363e0);
+	background: #fafafa;
+	color: #444;
+	text-align: center;
+	padding: 2rem;
+	margin: 1.5rem 0;
+	border-radius: 8px;
+	transition: border-color 0.2s, background 0.2s;
+	cursor: pointer;
+}
+
+#tdmedia-upload-zone.drag-over {
+	background: #e6f0ff;
+	border-color: #0055cc;
+	color: #000;
+}
+
+#tdmedia-upload-zone strong {
+	display: block;
+	font-size: 1.1rem;
+	margin-bottom: 0.5rem;
+}
+
+#tdmedia-uploading-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(255, 255, 255, 0.85);
+	display: none;
+	align-items: center;
+	justify-content: center;
+	z-index: 9999;
+}
+
+#tdmedia-progress-bar {
+	width: 60%;
+	height: 14px;
+	background: #ddd;
+	border-radius: 7px;
+	overflow: hidden;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+#tdmedia-progress-bar-inner-overlay,
+#tdmedia-progress-bar-inner {
+	height: 100%;
+	width: 0%;
+	background: var(--yak-color-primary, #2363e0);
+	transition: width 0.3s ease;
+}
+
+#tdmedia-progress-wrapper {
+	display: none;
+	width: 100%;
+	margin: 1rem 0;
+}
+
+.tdmedia-uploading body {
+	overflow: hidden;
+}
+
+.clb-tdmedia-uploading-in-progress-text-wrapper {
+	font-size: 20rem;
+	color: red;
+}
+
+#tdmedia-uploading-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(255,255,255,0.8);
+	z-index: 9999;
+	display: none;
+	justify-content: center;
+	align-items: center;
+	font-size: 18px;
+	color: #333;
+}
+
+#tdmedia-progress-bar {
+	width: 80%;
+	height: 12px;
+	background: #e0e0e0;
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+#tdmedia-progress-bar-inner,
+#tdmedia-progress-bar-inner-overlay {
+	height: 100%;
+	width: 0%;
+	background: #0073aa;
+	transition: width 0.3s ease;
+}
+
+.wp-admin.tdmedia-uploading {
+	cursor: wait !important;
 }

@@ -23,7 +23,7 @@ let tdmediaItems = [];
 
 
 /* A few helpers ----- */
-function getFlexBasis(width, height, targetRowHeight = 280) {
+function getFlexBasis(width, height, targetRowHeight = 360) {
 	const aspectRatio = width / height;
 	return +(targetRowHeight * aspectRatio).toFixed(2);
 }
@@ -45,7 +45,7 @@ function createTdMediaItem(item, basis) {
 	const div = document.createElement('div');
 	div.className = 'tdmedia-item';
 	div.style.flexBasis = `${basis}px`;
-	div.style.height = '320px';
+	div.style.height = '360px';
 
 	const width = item.media_details?.width || '—';
 	const height = item.media_details?.height || '—';
@@ -429,6 +429,9 @@ function init() {
 		    document.body.style.cursor = ''; // Always reset cursor
 	    });
 
+        const statusEl = document.getElementById('tdmedia-status');
+        setupUploadZone(statusEl, fetchInitialBatch);
+
 }
 
 /**
@@ -474,57 +477,51 @@ function layoutRows(items, clear = true) {
 
 	let currentRow = [];
 	let rowWidth = 0;
-	const maxRowWidth = grid.clientWidth || 1000; // fallback
-
-	const targetRowHeight = 320;
+	const maxRowWidth = grid.clientWidth || 1000;
+	const targetRowHeight = 360;
 	const spacing = 16;
 
 	items.forEach((item, index) => {
-        console.log(item);
 		const w = item.media_details?.width || 1;
 		const h = item.media_details?.height || 1;
-		const aspectRatio = w / h;
+		let ar = w / h;
+		if (ar < 0.75) ar *= 1.33; // vertical boost
 
-		// Ideal height is fixed, width scales by aspect ratio
-		const scaledWidth = targetRowHeight * aspectRatio;
+		const scaledWidth = targetRowHeight * ar;
 
-		currentRow.push(item);
+		currentRow.push({ item, boostedAR: ar });
 		rowWidth += scaledWidth + spacing;
 
-		// If row is full or last item
 		const isLast = index === items.length - 1;
 		if (rowWidth >= maxRowWidth || isLast) {
-			// Calculate shrink ratio
-			const totalScaled = currentRow.reduce((sum, i) => {
-				const iw = i.media_details?.width || 1;
-				const ih = i.media_details?.height || 1;
-				return sum + (targetRowHeight * (iw / ih));
-			}, 0);
-
-			const shrinkRatio = (maxRowWidth - spacing * (currentRow.length - 1)) / totalScaled;
-
 			const row = document.createElement('div');
 			row.className = 'tdmedia-row';
 
-			currentRow.forEach(i => {
+			if (isLast && rowWidth < maxRowWidth) {
+				// Ragged edge row – no shrinking
+				currentRow.forEach(({ item, boostedAR }) => {
+					const basis = targetRowHeight * boostedAR;
+					row.appendChild(createTdMediaItem(item, basis));
+				});
+			} else {
+				// Normal row – shrink to fit
+				const totalScaled = currentRow.reduce((sum, i) => sum + (targetRowHeight * i.boostedAR), 0);
+				const shrinkRatio = (maxRowWidth - spacing * (currentRow.length - 1)) / totalScaled;
 
-                console.log(i);
-
-				const iw = i.media_details?.width || 1;
-				const ih = i.media_details?.height || 1;
-				const ar = iw / ih;
-				const basis = targetRowHeight * ar * shrinkRatio;
-				row.appendChild(createTdMediaItem(i, basis));
-			});
+				currentRow.forEach(({ item, boostedAR }) => {
+					const basis = targetRowHeight * boostedAR * shrinkRatio;
+					row.appendChild(createTdMediaItem(item, basis));
+				});
+			}
 
 			grid.appendChild(row);
-
-			// Reset for next row
 			currentRow = [];
 			rowWidth = 0;
 		}
 	});
 }
+
+
 
 
 
@@ -793,6 +790,92 @@ function setupSearchInput() {
 		}, 250);
 	});
 }
+
+
+
+
+function setupUploadZone(statusEl, fetchMedia) {
+	const zone = document.getElementById('tdmedia-upload-zone');
+	const overlay = document.getElementById('tdmedia-uploading-overlay');
+	const overlayBar = document.getElementById('tdmedia-progress-bar-inner-overlay');
+	const toolbarWrapper = document.getElementById('tdmedia-progress-wrapper');
+	const toolbarBar = document.getElementById('tdmedia-progress-bar-inner');
+
+	// Highlight drop zone
+	['dragenter', 'dragover'].forEach(event => {
+		zone.addEventListener(event, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			zone.classList.add('drag-over');
+		});
+	});
+
+	// Remove highlight
+	['dragleave', 'drop'].forEach(event => {
+		zone.addEventListener(event, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			zone.classList.remove('drag-over');
+		});
+	});
+
+	// Handle drop
+	zone.addEventListener('drop', async e => {
+		e.preventDefault();
+		e.stopPropagation();
+
+        document.body.style.cursor = 'wait';
+
+		const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+		if (files.length === 0) return;
+
+		statusEl.textContent = `Uploading ${files.length} image(s)…`;
+
+		// Show UI
+		document.body.classList.add('tdmedia-uploading');
+		overlay.style.display = 'flex';
+		toolbarWrapper.style.display = 'block';
+		overlayBar.style.width = '0%';
+		toolbarBar.style.width = '0%';
+
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			const formData = new FormData();
+			formData.append('file', file);
+			formData.append('title', file.name);
+
+			try {
+				await wp.apiFetch({
+					path: '/wp/v2/media',
+					method: 'POST',
+					body: formData,
+					headers: {
+						'Content-Disposition': `attachment; filename="${file.name}"`
+					}
+				});
+			} catch (err) {
+				console.error('[TDMEDIA] Upload error:', err);
+			}
+
+			const pct = Math.round(((i + 1) / files.length) * 100);
+			overlayBar.style.width = `${pct}%`;
+			toolbarBar.style.width = `${pct}%`;
+		}
+
+		// Done
+		document.body.classList.remove('tdmedia-uploading');
+		overlay.style.display = 'none';
+		toolbarWrapper.style.display = 'none';
+		statusEl.textContent = 'Upload complete. Refreshing…';
+
+		await fetchMedia(); // re-fetch latest media
+        document.body.style.cursor = ''; // reset to default
+
+	});
+
+
+}
+
 
 
 
