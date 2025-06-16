@@ -4,7 +4,7 @@ const tdMedia = {
 		initialLoadCount: 24,
 		cacheKey: 'tdmedia-cache',
 		cacheMaxAgeMs: 1000 * 60 * 10, // 10 minutes
-        fieldsParam: 'id,title,source_url,media_details,_avif_url,_webp_url,modified,date,alt_text,caption,description,_avif_size_kb,_webp_size_kb',
+        fieldsParam: 'id,title,source_url,media_details,mime_type,_avif_url,_webp_url,modified,date,alt_text,caption,description,_avif_size_kb,_webp_size_kb',
 
 	},
 	state: {
@@ -472,6 +472,7 @@ function renderGrid(items) {
 
 
 function layoutRows(items, clear = true) {
+
 	const grid = tdMedia.elements.grid;
 	if (clear) grid.innerHTML = '';
 
@@ -482,6 +483,16 @@ function layoutRows(items, clear = true) {
 	const spacing = 16;
 
 	items.forEach((item, index) => {
+
+        // Sanity check: log mime type and ID
+	console.log(`[TDMEDIA] Processing item ID: ${item.id}, mime: ${item.mime_type}`);
+
+	// Skip if not a photo
+	if (!item.mime_type || !item.mime_type.startsWith('image/')) {
+		console.log(`[TDMEDIA] Skipped non-image item ID: ${item.id}`);
+		return;
+	}
+
 		const w = item.media_details?.width || 1;
 		const h = item.media_details?.height || 1;
 		let ar = w / h;
