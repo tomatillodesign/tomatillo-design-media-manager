@@ -3,7 +3,7 @@ const tdMedia = {
 	settings: {
 		initialLoadCount: 24,
 		cacheKey: 'tdmedia-cache',
-		cacheMaxAgeMs: 1000 * 60 * 10, // 10 minutes
+		cacheMaxAgeMs: 1000 * 60 * 60 * 12, // 12 hours
         fieldsParam: 'id,title,source_url,media_details,mime_type,_avif_url,_webp_url,modified,date,alt_text,caption,description,_avif_size_kb,_webp_size_kb',
 
 	},
@@ -679,6 +679,32 @@ function init() {
         
         // At page load or hydration
         renderToolbar();
+
+        // Create a toggle link for status panel
+        const statusToggle = document.createElement('div');
+        statusToggle.id = 'tdmedia-status-toggle';
+        statusToggle.style = `
+            font-size: 12px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            color: #2363e0;
+            user-select: none;
+            text-align: right;
+        `;
+        statusToggle.textContent = 'Show Status Panel';
+
+        statusToggle.addEventListener('click', () => {
+            const panel = document.getElementById('tdmedia-status');
+            const isHidden = panel.style.display === 'none';
+            panel.style.display = isHidden ? 'block' : 'none';
+            statusToggle.textContent = isHidden ? 'Hide Status Panel' : 'Show Status Panel';
+        });
+
+        // Default hidden
+        tdMedia.elements.statusPanel.style.display = 'none';
+
+        // Insert above the panel
+        tdMedia.elements.app.insertBefore(statusToggle, tdMedia.elements.statusPanel);
 
 
 }
