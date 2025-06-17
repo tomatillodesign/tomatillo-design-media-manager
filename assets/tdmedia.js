@@ -1289,6 +1289,44 @@ function renderToolbar() {
 	mountPoint.insertBefore(toolbar, mountPoint.firstChild);
 
 	setupToolbarEvents();
+
+    // After you've created the toolbar DOM
+    const searchInput = document.getElementById('tdmedia-search');
+    const clearBtn = document.getElementById('tdmedia-clear-search');
+
+    console.log('[TDMEDIA] Search input:', searchInput);
+    console.log('[TDMEDIA] Clear button:', clearBtn);
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            tdMedia.state.searchQuery = query;
+
+            const filtered = tdMedia.state.items.filter(item => {
+                const text = (
+                    item.title?.rendered +
+                    ' ' +
+                    (item.alt_text || '') +
+                    ' ' +
+                    (item.caption?.rendered || '')
+                ).toLowerCase();
+                return text.includes(query);
+            });
+
+            renderGrid(filtered);
+            clearBtn.style.display = query ? 'block' : 'none';
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            tdMedia.state.searchQuery = '';
+            renderGrid(tdMedia.state.items);
+            clearBtn.style.display = 'none';
+        });
+    }
+
 }
 
 
