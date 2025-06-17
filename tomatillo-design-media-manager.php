@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Tomatillo Design ~ Media Manager
  * Description:       A custom WordPress Media Library experience with improved layout, AVIF support, and modern JavaScript enhancements.
- * Version:           1.2
+ * Version:           1.1
  * Author:            Chris Liu-Beers, Tomatillo Design
  * Plugin URI:        https://github.com/tomatillodesign/tomatillo-design-media-manager
  */

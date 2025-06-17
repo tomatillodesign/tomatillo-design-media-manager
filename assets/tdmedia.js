@@ -134,12 +134,11 @@ function openTdMediaModal(item) {
 	console.log('[TDMEDIA] Injecting modal for:', item);
 	document.getElementById('tdmedia-modal')?.remove();
 
-    const isImage = item.mime_type?.startsWith('image/');
-    const currentViewItems = tdmediaItems.filter(i =>
-        isImage ? i.mime_type?.startsWith('image/') : !i.mime_type?.startsWith('image/')
-    );
-    const currentIndex = currentViewItems.findIndex(i => i.id === item.id);
-
+	const isImage = item.mime_type?.startsWith('image/');
+	const currentViewItems = tdmediaItems.filter(i =>
+		isImage ? i.mime_type?.startsWith('image/') : !i.mime_type?.startsWith('image/')
+	);
+	const currentIndex = currentViewItems.findIndex(i => i.id === item.id);
 
 	const filename = item.title?.rendered || '(No name)';
 	const rawCaption = item.caption?.rendered || '';
@@ -163,39 +162,36 @@ function openTdMediaModal(item) {
 	let displayType = 'Original — ' + (item.mime_type || 'image/jpeg');
 	let imageUrl = null;
 
-    if (item.mime_type?.startsWith('image/')) {
-        imageUrl = item._avif_url || item._webp_url || item.source_url;
-    } else if (item.mime_type === 'application/pdf') {
-        imageUrl = item.media_details?.sizes?.full?.source_url || null;
-    }
+	if (item.mime_type?.startsWith('image/')) {
+		imageUrl = item._avif_url || item._webp_url || item.source_url;
+	} else if (item.mime_type === 'application/pdf') {
+		imageUrl = item.media_details?.sizes?.full?.source_url || null;
+	}
 
-    const fallbackIcon = getIconClassForMime(item.mime_type);
+	const fallbackIcon = getIconClassForMime(item.mime_type);
 
 	const modal = document.createElement('div');
-    modal.id = 'tdmedia-modal';
-    const viewClass = item.mime_type?.startsWith('image/') ? 'is-image' : 'is-file';
-    modal.className = `tdmedia-modal-wrapper ${viewClass}`;
+	modal.id = 'tdmedia-modal';
+	const viewClass = item.mime_type?.startsWith('image/') ? 'is-image' : 'is-file';
+	modal.className = `tdmedia-modal-wrapper ${viewClass}`;
 
 	modal.innerHTML = `
 		<div class="tdmedia-modal-overlay"></div>
 		<div class="tdmedia-modal-content" role="dialog" aria-modal="true">
 			<div class="tdmedia-modal-left">
 				<div class="tdmedia-modal-image">
-                    ${imageUrl
-                        ? `<img src="${imageUrl}" alt="${item.alt_text || filename}" />`
-                        : `<span class="dashicons ${fallbackIcon}" style="font-size: 96px; color: #666;"></span>`
-                    }
-                </div>
+					${imageUrl
+						? `<img src="${imageUrl}" alt="${item.alt_text || filename}" />`
+						: `<span class="dashicons ${fallbackIcon}" style="font-size: 96px; color: #666;"></span>`
+					}
+				</div>
 			</div>
 			<div class="tdmedia-modal-right">
 				<h2>${filename}</h2>
 				<ul class="tdmedia-meta-list">
 					<li><strong>ID:</strong> ${item.id}</li>
 					<li><strong>Type:</strong> ${displayType}</li>
-					${item.mime_type?.startsWith('image/')
-                        ? `<li><strong>Size:</strong> ${width && height ? `${width}×${height}` : '—'}</li>`
-                        : ''
-                    }
+					${item.mime_type?.startsWith('image/') ? `<li><strong>Size:</strong> ${width && height ? `${width}×${height}` : '—'}</li>` : ''}
 					<li><strong>File:</strong> ${readableSize}</li>
 					<li><strong>Uploaded:</strong> ${uploaded}</li>
 					<li><strong>URL:</strong> <span class="clb-pre">${imageUrl}</span></li>
@@ -207,10 +203,9 @@ function openTdMediaModal(item) {
 					<a id="tdmedia-download-link" href="${item.source_url}" download target="_blank" rel="noopener">
 						<button type="button">Download Original File</button>
 					</a>
-                    <button type="button" id="tdmedia-delete-file" style="margin-left: auto; color: red; background: none; border: none; text-decoration: underline; cursor: pointer;">
-                        Delete File
-                    </button>
-
+					<button type="button" id="tdmedia-delete-file" style="margin-left: auto; color: red; background: none; border: none; text-decoration: underline; cursor: pointer;">
+						Delete File
+					</button>
 				</div>
 
 				<form id="tdmedia-meta-form">
@@ -232,7 +227,7 @@ function openTdMediaModal(item) {
 
 				<div class="tdmedia-modal-nav">
 					<button id="tdmedia-prev" ${currentIndex === 0 ? 'disabled' : ''}>&larr; Prev</button>
-                    <button id="tdmedia-next" ${currentIndex === currentViewItems.length - 1 ? 'disabled' : ''}>Next &rarr;</button>
+					<button id="tdmedia-next" ${currentIndex === currentViewItems.length - 1 ? 'disabled' : ''}>Next &rarr;</button>
 				</div>
 			</div>
 		</div>
@@ -240,20 +235,30 @@ function openTdMediaModal(item) {
 
 	document.body.appendChild(modal);
 
-	// Close actions
-	const closeModal = () => modal.remove();
-	modal.querySelector('.tdmedia-modal-overlay')?.addEventListener('click', closeModal);
-	modal.querySelector('#tdmedia-close-modal')?.addEventListener('click', closeModal);
-	document.addEventListener('keydown', function escClose(e) {
+	const closeModal = () => {
+		modal.remove();
+		document.removeEventListener('keydown', keyHandler);
+	};
+
+	// Shared handler for Escape + arrows
+	const keyHandler = (e) => {
+		if (!document.getElementById('tdmedia-modal')) return;
+
 		if (e.key === 'Escape') {
 			closeModal();
-			document.removeEventListener('keydown', escClose);
-            document.removeEventListener('keydown', keyHandler);
+		} else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+			openTdMediaModal(currentViewItems[currentIndex - 1]);
+		} else if (e.key === 'ArrowRight' && currentIndex < currentViewItems.length - 1) {
+			openTdMediaModal(currentViewItems[currentIndex + 1]);
 		}
-        
-	});
+	};
 
-	// Copy URL
+	document.addEventListener('keydown', keyHandler);
+
+	modal.querySelector('.tdmedia-modal-overlay')?.addEventListener('click', closeModal);
+	modal.querySelector('#tdmedia-close-modal')?.addEventListener('click', closeModal);
+
+	// Copy button
 	const copyBtn = document.getElementById('tdmedia-copy-url');
 	copyBtn?.addEventListener('click', async () => {
 		try {
@@ -297,62 +302,39 @@ function openTdMediaModal(item) {
 		}
 	});
 
-	// Prev/Next
+	// Delete
+	document.getElementById('tdmedia-delete-file')?.addEventListener('click', async () => {
+		if (!confirm('Are you absolutely sure you want to permanently delete this file from the media library?')) return;
+
+		try {
+			await wp.apiFetch({
+				path: `/wp/v2/media/${item.id}?force=true`,
+				method: 'DELETE'
+			});
+			tdmediaItems = tdmediaItems.filter(i => i.id !== item.id);
+			tdMedia.state.items = tdmediaItems;
+			renderGrid(tdmediaItems);
+			alert('File successfully deleted.');
+			closeModal();
+		} catch (err) {
+			console.error('[TDMEDIA] Failed to delete:', err);
+			alert('⚠️ Failed to delete this file. Check console for details.');
+		}
+	});
+
+	// Prev/Next buttons
 	document.getElementById('tdmedia-prev')?.addEventListener('click', () => {
-        if (currentIndex > 0) {
-            openTdMediaModal(currentViewItems[currentIndex - 1]);
-        }
-    });
-
+		if (currentIndex > 0) {
+			openTdMediaModal(currentViewItems[currentIndex - 1]);
+		}
+	});
 	document.getElementById('tdmedia-next')?.addEventListener('click', () => {
-        if (currentIndex < currentViewItems.length - 1) {
-            openTdMediaModal(currentViewItems[currentIndex + 1]);
-        }
-    });
-
-    // Keyboard navigation
-    const keyHandler = (e) => {
-        if (!document.getElementById('tdmedia-modal')) return;
-
-        if (e.key === 'ArrowLeft' && currentIndex > 0) {
-            openTdMediaModal(currentViewItems[currentIndex - 1]);
-        } else if (e.key === 'ArrowRight' && currentIndex < currentViewItems.length - 1) {
-            openTdMediaModal(currentViewItems[currentIndex + 1]);
-        } else if (e.key === 'Escape') {
-            closeModal();
-        }
-    };
-
-    document.addEventListener('keydown', keyHandler);
-
-    document.getElementById('tdmedia-delete-file')?.addEventListener('click', async () => {
-        if (!confirm('Are you absolutely sure you want to permanently delete this file from the media library?')) return;
-
-        try {
-            const res = await wp.apiFetch({
-                path: `/wp/v2/media/${item.id}?force=true`,
-                method: 'DELETE'
-            });
-
-            console.log('[TDMEDIA] Deleted:', res);
-
-            // Remove from tdmediaItems and refresh grid
-            tdmediaItems = tdmediaItems.filter(i => i.id !== item.id);
-            tdMedia.state.items = tdmediaItems;
-            renderGrid(tdmediaItems);
-
-            alert('File successfully deleted.');
-            document.getElementById('tdmedia-modal')?.remove();
-
-        } catch (err) {
-            console.error('[TDMEDIA] Failed to delete:', err);
-            alert('⚠️ Failed to delete this file. Check console for details.');
-        }
-    });
-
-
-
+		if (currentIndex < currentViewItems.length - 1) {
+			openTdMediaModal(currentViewItems[currentIndex + 1]);
+		}
+	});
 }
+
 
 
 
