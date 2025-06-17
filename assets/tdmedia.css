@@ -1,8 +1,15 @@
+/* ==================================================
+   🎯 Layout Containers + App Root
+   ================================================== */
+
 #tdmedia-app {
-	padding-left: 1rem;
-	padding-right: 2rem;
+	padding-inline: 1rem 2rem;
 	font-family: system-ui, sans-serif;
 	box-sizing: border-box;
+}
+
+#tdmedia-content {
+	position: relative;
 }
 
 #tdmedia-grid {
@@ -11,40 +18,39 @@
 	gap: 1rem;
 }
 
+
+/* ==================================================
+   🖼️ Image Grid + Rows
+   ================================================== */
+
 .tdmedia-row {
 	display: flex;
-	justify-content: space-between;
 	flex-direction: row;
 	gap: 16px;
+	justify-content: space-between;
 }
 
 .tdmedia-row:last-of-type {
-	display: flex;
 	justify-content: flex-start;
-	flex-direction: row;
-	gap: 16px;
 }
 
 .tdmedia-item {
+	position: relative;
 	flex: 0 0 auto;
 	display: block;
-	position: relative;
 	overflow: hidden;
 	cursor: pointer;
-	transition: transform 0.2s ease;
-
 	width: auto;
-	aspect-ratio: unset;
-	height: 320px; /* 🚨 new! Fixed row height */
-
+	height: 320px;
+	transition: transform 0.2s ease;
 }
-
 
 .tdmedia-item:hover {
 	transform: scale(1.02);
 	z-index: 2;
 }
 
+/* Image wrapper inside item */
 .tdmedia-img-wrapper {
 	width: 100%;
 	height: 100%;
@@ -55,15 +61,15 @@
 }
 
 .tdmedia-img-wrapper img {
-	border-radius: 3px;
 	width: 100%;
 	height: 100%;
+	border-radius: 3px;
 	object-fit: cover;
 	display: block;
 	transition: opacity 0.3s ease;
 }
 
-
+/* Overlay metadata block */
 .tdmedia-overlay {
 	position: absolute;
 	inset: 0;
@@ -77,10 +83,10 @@
 	font-size: 13px;
 	line-height: 1.4;
 	padding: 1rem;
+	border-radius: 4px;
 	opacity: 0;
 	transition: opacity 0.3s ease;
 	pointer-events: none;
-	border-radius: 4px;
 }
 
 .tdmedia-title {
@@ -95,6 +101,10 @@
 }
 
 
+/* ==================================================
+   🧊 File Grid + Card Layout
+   ================================================== */
+
 .tdmedia-file-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -102,9 +112,9 @@
 }
 
 .tdmedia-file-card {
+	position: relative;
 	display: flex;
 	flex-direction: column;
-	justify-content: flex-start;
 	align-items: center;
 	text-align: center;
 	padding: 1rem;
@@ -113,10 +123,9 @@
 	cursor: pointer;
 	transition: all 0.33s ease-in-out;
 	height: 300px;
-	overflow: hidden;
 	box-shadow: 0 0 12px rgba(0, 0, 0, 0.1);
+	overflow: hidden;
 }
-
 
 .tdmedia-file-card:hover {
 	background: #333;
@@ -136,7 +145,6 @@
 	overflow: hidden;
 }
 
-
 .tdmedia-file-thumb img {
 	max-height: 100%;
 	width: 100%;
@@ -145,15 +153,14 @@
 }
 
 .tdmedia-file-thumb .dashicons {
-	font-size: 64px;
-	color: #777;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 100%;
 	height: 100%;
+	font-size: 64px;
+	color: #777;
 }
-
 
 .tdmedia-file-info {
 	width: 100%;
@@ -170,10 +177,10 @@
 
 .tdmedia-file-type,
 .tdmedia-file-meta {
-	transition: all 0.33s ease-in-out;
 	font-size: 12px;
 	color: #555;
 	margin-top: 0.15rem;
+	transition: all 0.33s ease-in-out;
 }
 
 .tdmedia-file-card:hover .tdmedia-file-type,
@@ -182,31 +189,187 @@
 	color: #fff;
 }
 
-/* Modal wrapper */
-#tdmedia-modal {
-	position: fixed;
-	inset: 0;
-	z-index: 999999; /* Ensures it overlays the entire WP UI */
+
+
+
+/* ==================================================
+   🎛️ Toolbar + Controls (View toggle, Bulk mode, Search)
+   ================================================== */
+
+.tdmedia-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+	padding: 1rem;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	background: var(--yak-color-muted, #f9f9f9);
+	margin-bottom: 1rem;
+}
+
+.tdmedia-toolbar-left,
+.tdmedia-toolbar-right {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.tdmedia-toolbar-center {
+	flex: 1 1 auto;
+	display: flex;
+	justify-content: center;
+}
+
+/* View Toggle Buttons (like Bootstrap group) */
+.tdmedia-view-toggle {
+	display: inline-flex;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.tdmedia-view-toggle button {
+	border: none;
+	background: var(--yak-color-muted, #f1f1f1);
+	color: #000;
+	padding: 0.5rem 1rem;
+	cursor: pointer;
+	font-size: 14px;
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	border-right: 1px solid #ccc;
+	transition: background 0.2s ease;
+}
+
+.tdmedia-view-toggle button:last-child {
+	border-right: none;
+}
+
+.tdmedia-view-toggle button:hover {
+	background: #e4e4e4;
+}
+
+.tdmedia-view-toggle button.is-active {
+	background: var(--yak-color-primary, #2363e0);
+	color: #fff;
+}
+
+/* Bulk Mode Button */
+.tdmedia-bulk-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.4rem 0.75rem;
+	font-size: 14px;
+	background: var(--yak-color-muted, #f1f1f1);
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.tdmedia-bulk-btn:hover {
+	background: #e2e2e2;
+}
+
+.tdmedia-bulk-btn.is-active {
+	background: #d9534f;
+	border-color: #b52b27;
+	color: #fff;
+}
+
+.tdmedia-bulk-btn.is-active .dashicons {
+	color: #fff;
+}
+
+
+/* Match height of buttons to input field */
+.tdmedia-toolbar .tdmedia-view-toggle button,
+.tdmedia-toolbar .tdmedia-bulk-btn {
+	height: 100%;
+	box-sizing: border-box;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	pointer-events: none; /* Prevent modal wrapper itself from intercepting clicks */
+	padding: 0.5rem 1rem;
+	font-size: 14px;
 }
 
-/* Dark translucent overlay */
+/* Ensure the search bar sets the height context */
+.tdmedia-search-wrapper input {
+	height: 100%;
+	box-sizing: border-box;
+	padding: 0.5rem 1rem;
+	font-size: 14px;
+}
+
+
+
+/* Search Field */
+.tdmedia-search-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+	width: 100%;
+}
+
+#tdmedia-search {
+	width: 100%;
+	padding: 10px;
+	font-size: 14px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	box-sizing: border-box;
+}
+
+#tdmedia-clear-search {
+	position: absolute;
+	right: 0.5rem;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	font-size: 18px;
+	color: #666;
+	cursor: pointer;
+	display: none;
+}
+
+
+
+/* ==================================================
+   📸 Modal Base Styles
+   ================================================== */
+
+/* Modal full-page wrapper */
+#tdmedia-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 999999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none; /* prevent ghost clicks outside modal */
+}
+
+/* Dark backdrop */
 #tdmedia-modal .tdmedia-modal-overlay {
 	position: absolute;
 	inset: 0;
 	background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(10px);
-	z-index: 0; /* Behind modal content */
-	pointer-events: auto; /* Let clicks dismiss the modal */
+	backdrop-filter: blur(10px);
+	z-index: 0;
+	pointer-events: auto;
 }
 
-/* Modal content block */
+/* Main modal container */
 #tdmedia-modal .tdmedia-modal-content {
 	position: relative;
-	z-index: 1; /* Above the overlay */
+	z-index: 1;
 	background: #fff;
 	border-radius: 8px;
 	display: flex;
@@ -216,65 +379,86 @@
 	height: 80vh;
 	overflow: hidden;
 	box-shadow: 0 0 20px rgba(0, 0, 0, 0.9);
-	pointer-events: auto; /* Allow interactions inside modal */
+	pointer-events: auto;
 }
 
-/* Optional: constrain image height too */
-.tdmedia-modal-left img {
-    height: 100%;
-	max-height: 100%;
-	object-fit: contain;
-	display: block;
-	margin: 0 auto;
-}
-
-/* Image section */
-.tdmedia-modal-image {
+/* Left-hand side: image or icon */
+.tdmedia-modal-left {
 	width: 100%;
-	height: 100%;
 	min-width: 300px;
 	min-height: 300px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	background: #f0f0f0;
-	border-radius: 6px;
-	overflow: hidden;
 	border-radius: 0;
+	overflow: hidden;
 }
 
-.tdmedia-modal-image .dashicons {
-	display: flex; /* 🆕 makes it respect flex centering */
+.tdmedia-modal-image {
+	width: 100%;
+	height: 100%;
+	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 100%;   /* 🆕 stretch it */
-	height: 100%;  /* 🆕 stretch it */
-	font-size: 96px;
-	color: #666;
+	border-radius: 0;
 }
-
 
 .tdmedia-modal-image img {
 	max-width: 100%;
 	max-height: 100%;
 	object-fit: contain;
 	border-radius: 0;
+	display: block;
+	margin: 0 auto;
 }
 
-/* Right side: scrolls if content is too tall */
+.tdmedia-modal-image .dashicons {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	font-size: 96px;
+	color: #666;
+}
+
+
+/* ==================================================
+   📝 Modal Right Side + Form Controls
+   ================================================== */
+
+/* Right-side content panel */
 .tdmedia-modal-right {
 	flex: 1 1 40%;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	gap: 1rem;
+	height: 100%;
 	overflow-y: auto;
-	max-height: 100%;
 }
 
-/* Form section */
-.tdmedia-modal-form-placeholder {
-	flex: 1 1 40%;
-	overflow-y: auto;
-	padding-right: 1rem;
+.tdmedia-modal-right h2 {
+	margin-top: 0;
+	margin-bottom: 0;
 }
 
+/* Meta data list */
+ul.tdmedia-meta-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.clb-pre {
+	font-family: monospace;
+	padding: 4px;
+	background: #eee;
+	word-break: break-all;
+}
+
+/* Form group styling */
 .tdmedia-form-group {
 	margin-bottom: 1.25rem;
 }
@@ -295,20 +479,7 @@
 	box-sizing: border-box;
 }
 
-#tdmedia-save-meta {
-	margin-top: 1rem;
-	padding: 0.6rem 1.2rem;
-	background-color: var(--yak-color-primary, #2363e0);
-	color: white;
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
-}
-
-#tdmedia-save-meta:hover {
-	background-color: #1c50b5;
-}
-
+/* Action buttons (copy, download) */
 .tdmedia-actions {
 	display: flex;
 	gap: 1rem;
@@ -322,71 +493,48 @@
 	border: none;
 	border-radius: 4px;
 	cursor: pointer;
-	transition: background 0.2s ease;
 	font-size: 0.9rem;
-}
-
-#tdmedia-refresh {
-	padding: 0.5em 1em;
-	background: var(--yak-color-primary, #2363e0);
-	color: white;
-	border: none;
-	border-radius: 4px;
-	cursor: pointer;
 	transition: background 0.2s ease;
-	font-size: 0.9rem;
-}
-
-.clb-pre {
-    font-family: monospace;
-    padding: 4px;
-    background: #eee;
 }
 
 .tdmedia-actions button:hover {
 	background: #1b4db2;
 }
 
+/* Save + Close button block */
 .tdmedia-close-modal-wrapper {
-    display: flex;
-    justify-content: space-between;
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
 }
 
-.tdmedia-modal-right h2 {
-    margin-top: 0;
-	margin-bottom: 0;
-}
-
+#tdmedia-save-meta,
 #tdmedia-close-modal {
-    margin-top: 1rem;
 	padding: 0.6rem 1.2rem;
-	background-color: var(--yak-color-primary, #2363e0);
-    background: red;
+	font-size: 0.9rem;
 	color: white;
 	border: none;
 	border-radius: 4px;
 	cursor: pointer;
 }
 
+#tdmedia-save-meta {
+	background: var(--yak-color-primary, #2363e0);
+}
+
+#tdmedia-save-meta:hover {
+	background: #1c50b5;
+}
+
+#tdmedia-close-modal {
+	background: red;
+}
+
 #tdmedia-close-modal:hover {
 	opacity: 0.8;
-} 
-
-
-
-.tdmedia-overlay-caption p {
-	display: inline;
 }
 
-.tdmedia-modal-right {
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-start;
-	gap: 1rem;
-	height: 100%;
-	overflow-y: auto;
-}
-
+/* Modal navigation (prev/next) */
 .tdmedia-modal-nav {
 	margin-top: auto;
 	display: flex;
@@ -395,24 +543,23 @@
 }
 
 .tdmedia-modal-nav button {
-	border: none;
+	border: 1px solid #aaa;
 	background: transparent;
 	padding: 0.6rem 1.2rem;
 	border-radius: 4px;
-	border: 1px solid #aaa;
 	font-size: 0.9rem;
+	cursor: pointer;
 }
 
 .tdmedia-modal-nav button:hover {
 	opacity: 0.8;
 }
 
-ul.tdmedia-meta-list {
-	margin-top: 0;
-	margin-bottom: 0;
-}
 
 
+/* ==================================================
+   📦 Upload UI + Drag and Drop Zone
+   ================================================== */
 
 #tdmedia-upload-zone {
 	border: 2px dashed var(--yak-color-primary, #2363e0);
@@ -438,61 +585,33 @@ ul.tdmedia-meta-list {
 	margin-bottom: 0.5rem;
 }
 
+/* Uploading overlay (spinner blockout) */
 #tdmedia-uploading-overlay {
 	position: fixed;
 	inset: 0;
 	background: rgba(255, 255, 255, 0.85);
 	display: none;
-	align-items: center;
 	justify-content: center;
+	align-items: center;
 	z-index: 9999;
+	font-size: 18px;
+	color: #333;
 }
 
-#tdmedia-progress-bar {
-	width: 60%;
-	height: 14px;
-	background: #ddd;
-	border-radius: 7px;
-	overflow: hidden;
-	box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+.wp-admin.tdmedia-uploading {
+	cursor: wait !important;
 }
 
-#tdmedia-progress-bar-inner-overlay,
-#tdmedia-progress-bar-inner {
-	height: 100%;
-	width: 0%;
-	background: var(--yak-color-primary, #2363e0);
-	transition: width 0.3s ease;
-}
+
+
+/* ==================================================
+   ⏳ Upload Progress Bar
+   ================================================== */
 
 #tdmedia-progress-wrapper {
 	display: none;
 	width: 100%;
 	margin: 1rem 0;
-}
-
-.tdmedia-uploading body {
-	overflow: hidden;
-}
-
-.clb-tdmedia-uploading-in-progress-text-wrapper {
-	font-size: 20rem;
-	color: red;
-}
-
-#tdmedia-uploading-overlay {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: rgba(255,255,255,0.8);
-	z-index: 9999;
-	display: none;
-	justify-content: center;
-	align-items: center;
-	font-size: 18px;
-	color: #333;
 }
 
 #tdmedia-progress-bar {
@@ -501,39 +620,34 @@ ul.tdmedia-meta-list {
 	background: #e0e0e0;
 	border-radius: 6px;
 	overflow: hidden;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 #tdmedia-progress-bar-inner,
 #tdmedia-progress-bar-inner-overlay {
 	height: 100%;
 	width: 0%;
-	background: #0073aa;
+	background: var(--yak-color-primary, #2363e0);
 	transition: width 0.3s ease;
 }
 
-.wp-admin.tdmedia-uploading {
-	cursor: wait !important;
-}
 
 
+/* ==================================================
+   ✅ Bulk Select Mode UI
+   ================================================== */
+
+/* Checkbox injected into grid items */
 .tdmedia-select-checkbox {
 	position: absolute;
 	top: 8px;
 	left: 8px;
 	z-index: 10;
 	transform: scale(1.2);
-}
-.tdmedia-file-card,
-.tdmedia-item {
-	position: relative;
+	pointer-events: auto;
 }
 
-.tdmedia-select-checkbox:checked + .tdmedia-file-info,
-.tdmedia-select-checkbox:checked + .tdmedia-overlay {
-	outline: 2px solid var(--yak-color-primary, #2363e0);
-	outline-offset: 2px;
-}
-
+/* Outline + state when selected */
 .is-selected {
 	outline: 4px solid var(--yak-color-primary, #2363e0);
 	outline-offset: -1px;
@@ -542,26 +656,34 @@ ul.tdmedia-meta-list {
 	opacity: 0.5;
 }
 
+/* File + image item wrappers need to be position: relative */
+.tdmedia-file-card,
+.tdmedia-item {
+	position: relative;
+}
+
+/* When checkbox is selected and sibling is the overlay/file-info */
+.tdmedia-select-checkbox:checked + .tdmedia-overlay,
+.tdmedia-select-checkbox:checked + .tdmedia-file-info {
+	outline: 2px solid var(--yak-color-primary, #2363e0);
+	outline-offset: 2px;
+}
+
+/* Disable hover/scale in bulk mode */
+.tdmedia-bulk-active .tdmedia-item,
+.tdmedia-bulk-active .tdmedia-file-card {
+	cursor: pointer;
+	transform: none;
+	transition: none;
+}
+
+/* Kill hover styles when bulk mode active */
 .tdmedia-bulk-active .tdmedia-item:hover .tdmedia-overlay {
 	opacity: 0 !important;
 	pointer-events: none !important;
 }
 
-.tdmedia-bulk-active .tdmedia-item,
-.tdmedia-bulk-active .tdmedia-file-card {
-	cursor: pointer;
-	transform: scale(1);
-	transition: all ease-in-out 0s;
-}
-
-.tdmedia-bulk-active .tdmedia-item:hover {
-	outline: 4px solid var(--yak-color-primary, #2363e0);
-	outline-offset: 0;
-	background: #eef4ff;
-	border-radius: 3px;
-	opacity: 0.75;
-}
-
+.tdmedia-bulk-active .tdmedia-item:hover,
 .tdmedia-bulk-active .tdmedia-file-card:hover {
 	background: #fff;
 	outline: 4px solid var(--yak-color-primary, #2363e0);

@@ -416,6 +416,8 @@ function handleBulkCardClick(id, index, event) {
 
 	// No re-render needed — just update selected class
 	updateBulkSelectionUI();
+    renderBulkActionBar();
+
 }
 
 function updateBulkSelectionUI() {
@@ -424,6 +426,134 @@ function updateBulkSelectionUI() {
 		const id = parseInt(card.dataset.id, 10);
 		card.classList.toggle('is-selected', tdMedia.state.selectedItems.includes(id));
 	});
+}
+
+function getFileExtensionFromUrl(url = '') {
+	try {
+		const match = url.split('?')[0].match(/\.([a-zA-Z0-9]+)$/);
+		return match ? match[1].toLowerCase() : '';
+	} catch {
+		return '';
+	}
+}
+
+function getOriginalUploadUrl(sourceUrl = '') {
+	return sourceUrl.replace(/-scaled(?=\.\w{3,4}$)/i, '');
+}
+
+
+
+
+
+function renderBulkActionBar() {
+	const existing = document.getElementById('tdmedia-bulk-actions');
+	if (existing) existing.remove();
+
+	if (!tdMedia.state.bulkSelectMode) return;
+
+	const bar = document.createElement('div');
+	bar.id = 'tdmedia-bulk-actions';
+	bar.style = `
+		position: sticky;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: #fff;
+		border-top: 1px solid #ccc;
+		padding: 1rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		z-index: 100;
+	`;
+
+	bar.innerHTML = `
+	<div>
+	${tdMedia.state.selectedItems.length > 0
+		? `<strong>${tdMedia.state.selectedItems.length}</strong> item(s) selected`
+		: `<strong>No items selected yet</strong>`}
+    </div>
+
+	<div class="tdmedia-actions">
+		<button id="tdmedia-bulk-download" class="button button-primary">Download ZIP</button>
+		<button id="tdmedia-bulk-delete" class="button button-secondary" style="background: red; color: white;">Delete Selected</button>
+		<button id="tdmedia-bulk-clear" class="button">Clear Selection</button>
+	</div>
+`;
+
+	document.getElementById('tdmedia-content')?.appendChild(bar);
+
+	// Wire up buttons
+	document.getElementById('tdmedia-bulk-download')?.addEventListener('click', async () => {
+        if (tdMedia.state.selectedItems.length > 30) {
+            alert('You can only download up to 30 items at once.');
+            return;
+        }
+
+        const zip = new JSZip();
+        const selectedItems = tdMedia.state.items.filter(i =>
+            tdMedia.state.selectedItems.includes(i.id)
+        );
+
+        // Show loading overlay or status here if you want
+        let processed = 0;
+
+        for (const item of selectedItems) {
+            const rawUrl = item.source_url;
+            const url = getOriginalUploadUrl(rawUrl);
+            const base = item.title?.rendered || `file-${item.id}`;
+            const ext = getFileExtensionFromUrl(url);
+            const filename = ext ? `${base}.${ext}` : base;
+
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                zip.file(filename, blob);
+                processed++;
+            } catch (err) {
+                console.warn(`Failed to fetch file: ${filename}`, err);
+            }
+        }
+
+        if (processed === 0) {
+            alert('❌ No files were successfully fetched for zipping.');
+            return;
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(zipBlob);
+        downloadLink.download = `media-export-${Date.now()}.zip`;
+        downloadLink.click();
+    });
+
+
+	document.getElementById('tdmedia-bulk-delete')?.addEventListener('click', async () => {
+		if (!confirm(`Are you sure you want to permanently delete ${tdMedia.state.selectedItems.length} item(s)?`)) return;
+
+		const idsToDelete = [...tdMedia.state.selectedItems];
+		for (const id of idsToDelete) {
+			try {
+				await wp.apiFetch({ path: `/wp/v2/media/${id}?force=true`, method: 'DELETE' });
+			} catch (err) {
+				console.warn(`Failed to delete ID ${id}`, err);
+			}
+		}
+
+		tdMedia.state.selectedItems = [];
+		tdMedia.state.items = tdMedia.state.items.filter(i => !idsToDelete.includes(i.id));
+		renderGrid(tdMedia.state.items);
+		renderBulkActionBar();
+		alert('✅ Deleted selected items.');
+	});
+
+        document.getElementById('tdmedia-bulk-clear')?.addEventListener('click', () => {
+        tdMedia.state.selectedItems = [];
+        tdMedia.state.lastSelectedIndex = null;
+        renderGrid(tdMedia.state.items); // force full refresh
+    });
+
 }
 
 
@@ -476,60 +606,6 @@ function init() {
         console.warn('[TDMEDIA] No status panel found for Clear Cache button.');
     }
 
-    // Create search box
-    // Create search wrapper
-    const searchWrap = document.createElement('div');
-    searchWrap.style = 'margin-bottom: 1rem; position: relative;';
-
-    // Create search input
-    const searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.id = 'tdmedia-search';
-    searchInput.placeholder = 'Search by title, alt text, etc...';
-    searchInput.style = `
-        width: 100%;
-        padding: 0.5rem 2.5rem 0.5rem 0.5rem;
-        font-size: 14px;
-        box-sizing: border-box;
-    `;
-
-    // Create clear button
-    const clearBtn = document.createElement('button');
-    clearBtn.textContent = '×';
-    clearBtn.setAttribute('aria-label', 'Clear search');
-    clearBtn.style = `
-        position: absolute;
-        right: 0.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        font-size: 18px;
-        color: #666;
-        cursor: pointer;
-        display: none;
-    `;
-
-    // Add event listener to clear the input
-    clearBtn.addEventListener('click', () => {
-        searchInput.value = '';
-        clearBtn.style.display = 'none';
-        renderGrid(tdMedia.state.items);
-        renderStatus('Search cleared (showing all items)');
-    });
-
-    // Show/hide clear button as user types
-    searchInput.addEventListener('input', () => {
-        clearBtn.style.display = searchInput.value.length ? 'block' : 'none';
-    });
-
-    searchWrap.appendChild(searchInput);
-    searchWrap.appendChild(clearBtn);
-    tdMedia.elements.app.appendChild(searchWrap);
-
-    searchWrap.appendChild(searchInput);
-    tdMedia.elements.app.appendChild(searchWrap);
-
 	// Create image grid
 	tdMedia.elements.grid = document.createElement('div');
 	tdMedia.elements.grid.id = 'tdmedia-grid';
@@ -543,9 +619,6 @@ function init() {
     const cachedItems = loadFromCache() || [];
 
     document.body.style.cursor = 'progress'; // start
-    setupSearchInput();
-    renderViewToggle();
-    renderBulkToggle();
 
     // Step 2: fetch most recent 24 fresh
     fetch(`/wp-json/wp/v2/media?per_page=24&orderby=date&order=desc&_fields=${tdMedia.settings.fieldsParam}`)
@@ -588,6 +661,10 @@ function init() {
 
         const statusEl = document.getElementById('tdmedia-status');
         setupUploadZone(statusEl, fetchInitialBatch);
+        
+        // At page load or hydration
+        renderToolbar();
+
 
 }
 
@@ -621,18 +698,15 @@ async function fetchInitialBatch() {
 
 
 
-
 function renderGrid(items) {
-
-    const appRoot = document.getElementById('tdmedia-content');
-    if (appRoot) {
-        appRoot.classList.remove('tdmedia-view-files', 'tdmedia-view-images');
-        appRoot.classList.add(
-            tdMedia.state.viewMode === 'files' ? 'tdmedia-view-files' : 'tdmedia-view-images'
-        );
-
-        appRoot.classList.toggle('tdmedia-bulk-active', tdMedia.state.bulkSelectMode);
-    }
+	const appRoot = document.getElementById('tdmedia-content');
+	if (appRoot) {
+		appRoot.classList.remove('tdmedia-view-files', 'tdmedia-view-images');
+		appRoot.classList.add(
+			tdMedia.state.viewMode === 'files' ? 'tdmedia-view-files' : 'tdmedia-view-images'
+		);
+		appRoot.classList.toggle('tdmedia-bulk-active', tdMedia.state.bulkSelectMode);
+	}
 
 	if (tdMedia.state.viewMode === 'images') {
 		const images = items.filter(i => i.mime_type?.startsWith('image/'));
@@ -641,7 +715,11 @@ function renderGrid(items) {
 		const files = items.filter(i => !i.mime_type?.startsWith('image/'));
 		renderFileList(files);
 	}
+
+	// 🧠 Always check if bulk toolbar should show
+	renderBulkActionBar();
 }
+
 
 
 
@@ -1046,140 +1124,224 @@ function applyHydrationUpdates(updatedItems, removedIds) {
 
 
 // Search functionality
-function setupSearchInput() {
-	const input = document.getElementById('tdmedia-search');
-	if (!input) {
-		console.warn('[TDMEDIA] Search input not found, skipping setup.');
-		return;
-	}
+// function setupSearchInput() {
+// 	const input = document.getElementById('tdmedia-search');
+// 	if (!input) {
+// 		console.warn('[TDMEDIA] Search input not found, skipping setup.');
+// 		return;
+// 	}
 
-	console.log('[TDMEDIA] Search input found. Wiring up live search handler…');
-	let searchTimeout = null;
+// 	console.log('[TDMEDIA] Search input found. Wiring up live search handler…');
+// 	let searchTimeout = null;
 
-	input.addEventListener('input', () => {
-		const rawValue = input.value;
-		clearTimeout(searchTimeout);
+// 	input.addEventListener('input', () => {
+// 		const rawValue = input.value;
+// 		clearTimeout(searchTimeout);
 
-		searchTimeout = setTimeout(() => {
-			const query = rawValue.trim().toLowerCase();
+// 		searchTimeout = setTimeout(() => {
+// 			const query = rawValue.trim().toLowerCase();
 
-			if (query.length < 2) {
-				renderGrid(tdMedia.state.items); // Show all
-				renderStatus('Search cleared (showing all items)');
-				return;
-			}
+// 			if (query.length < 2) {
+// 				renderGrid(tdMedia.state.items); // Show all
+// 				renderStatus('Search cleared (showing all items)');
+// 				return;
+// 			}
 
-			const filtered = tdMedia.state.items.filter(item => {
-				const fields = [
-                    (item?.title?.rendered || '') + '',
-                    (item?.alt_text || '') + '',
-                    (item?.description?.rendered || item?.description || '') + '',
-                    (item?.caption?.rendered || item?.caption || '') + ''
-                ];
-				return fields.some(field => field.toLowerCase().includes(query));
-			});
+// 			const filtered = tdMedia.state.items.filter(item => {
+// 				const fields = [
+//                     (item?.title?.rendered || '') + '',
+//                     (item?.alt_text || '') + '',
+//                     (item?.description?.rendered || item?.description || '') + '',
+//                     (item?.caption?.rendered || item?.caption || '') + ''
+//                 ];
+// 				return fields.some(field => field.toLowerCase().includes(query));
+// 			});
 
-			renderGrid(filtered);
-			renderStatus(`Search: Found ${filtered.length} result(s) for "${query}"`);
-		}, 250);
-	});
-}
-
-
-function renderViewToggle() {
-	const existing = document.getElementById('tdmedia-view-toggle');
-	if (existing) existing.remove();
-
-	const wrap = document.createElement('div');
-	wrap.id = 'tdmedia-view-toggle';
-	wrap.style = `
-        display: inline-flex;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        overflow: hidden;
-        margin-bottom: 1rem;
-    `;
+// 			renderGrid(filtered);
+// 			renderStatus(`Search: Found ${filtered.length} result(s) for "${query}"`);
+// 		}, 250);
+// 	});
+// }
 
 
-	const views = [
-        { key: 'images', label: 'Images', icon: 'dashicons-format-image' },
-        { key: 'files', label: 'Files', icon: 'dashicons-media-document' },
-    ];
+// function renderViewToggle() {
+// 	const existing = document.getElementById('tdmedia-view-toggle');
+// 	if (existing) existing.remove();
+
+// 	const wrap = document.createElement('div');
+// 	wrap.id = 'tdmedia-view-toggle';
+// 	wrap.style = `
+//         display: inline-flex;
+//         border: 1px solid #ccc;
+//         border-radius: 6px;
+//         overflow: hidden;
+//         margin-bottom: 1rem;
+//     `;
 
 
-	views.forEach(view => {
-		const btn = document.createElement('button');
-		btn.innerHTML = `
-            <span class="dashicons ${view.icon}" style="margin-right: 0.5em;"></span>
-            ${view.label}
-        `;
-		btn.dataset.view = view.key;
-		btn.style = `
-            border: none;
-            background: ${tdMedia.state.viewMode === view.key ? '#2363e0' : '#f1f1f1'};
-            color: ${tdMedia.state.viewMode === view.key ? '#fff' : '#000'};
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            white-space: nowrap;
-        `;
-
-        if (tdMedia.state.viewMode !== view.key) {
-            btn.style.borderRight = '1px solid #ccc';
-        }
-
-		btn.addEventListener('click', () => {
-			tdMedia.state.viewMode = view.key;
-			renderGrid(tdMedia.state.items); // 🔁 re-render based on view
-			renderViewToggle(); // 🔁 re-render buttons
-			renderStatus(`Switched to "${view.label}" view`);
-		});
-
-		wrap.appendChild(btn);
-	});
-
-	// Insert right after searchWrap
-	const searchWrap = document.getElementById('tdmedia-search')?.parentElement;
-	if (searchWrap) {
-		searchWrap.insertAdjacentElement('afterend', wrap);
-	}
-}
+// 	const views = [
+//         { key: 'images', label: 'Images', icon: 'dashicons-format-image' },
+//         { key: 'files', label: 'Files', icon: 'dashicons-media-document' },
+//     ];
 
 
-function renderBulkToggle() {
-	const existing = document.getElementById('tdmedia-bulk-toggle');
-	if (existing) existing.remove();
+// 	views.forEach(view => {
+// 		const btn = document.createElement('button');
+// 		btn.innerHTML = `
+//             <span class="dashicons ${view.icon}" style="margin-right: 0.5em;"></span>
+//             ${view.label}
+//         `;
+// 		btn.dataset.view = view.key;
+// 		btn.style = `
+//             border: none;
+//             background: ${tdMedia.state.viewMode === view.key ? '#2363e0' : '#f1f1f1'};
+//             color: ${tdMedia.state.viewMode === view.key ? '#fff' : '#000'};
+//             padding: 0.5rem 1rem;
+//             cursor: pointer;
+//             font-size: 24px;
+//             display: flex;
+//             align-items: center;
+//             white-space: nowrap;
+//         `;
 
-	const btn = document.createElement('button');
-	btn.id = 'tdmedia-bulk-toggle';
-	btn.textContent = tdMedia.state.bulkSelectMode ? '✖ Exit Bulk Select' : '🗂 Bulk Select Mode';
-	btn.style = `
-		margin-left: 1rem;
-		padding: 0.4rem 0.75rem;
-		font-size: 13px;
-		border: 1px solid #ccc;
-		background: #fff;
-		cursor: pointer;
-		border-radius: 4px;
+//         if (tdMedia.state.viewMode !== view.key) {
+//             btn.style.borderRight = '1px solid #ccc';
+//         }
+
+// 		btn.addEventListener('click', () => {
+// 			tdMedia.state.viewMode = view.key;
+// 			renderGrid(tdMedia.state.items); // 🔁 re-render based on view
+// 			renderViewToggle(); // 🔁 re-render buttons
+// 			renderStatus(`Switched to "${view.label}" view`);
+// 		});
+
+// 		wrap.appendChild(btn);
+// 	});
+
+// 	// Insert right after searchWrap
+// 	const searchWrap = document.getElementById('tdmedia-search')?.parentElement;
+// 	if (searchWrap) {
+// 		searchWrap.insertAdjacentElement('afterend', wrap);
+// 	}
+// }
+
+
+// function renderBulkToggle() {
+// 	const existing = document.getElementById('tdmedia-bulk-toggle');
+// 	if (existing) existing.remove();
+
+// 	const btn = document.createElement('button');
+// 	btn.id = 'tdmedia-bulk-toggle';
+// 	btn.textContent = tdMedia.state.bulkSelectMode ? '✖ Exit Bulk Select' : '🗂 Bulk Select Mode';
+
+// 	btn.addEventListener('click', () => {
+// 		tdMedia.state.bulkSelectMode = !tdMedia.state.bulkSelectMode;
+// 		tdMedia.state.selectedItems = [];
+// 		tdMedia.state.lastSelectedIndex = null;
+// 		renderGrid(tdMedia.state.items); // refresh grid to show checkboxes
+// 		renderViewToggle();
+// 		renderBulkToggle();
+// 	});
+
+// 	const target = document.getElementById('tdmedia-view-toggle');
+// 	if (target?.parentNode) {
+// 		target.parentNode.insertBefore(btn, target.nextSibling);
+// 	}
+// }
+
+
+function renderToolbar() {
+	const container = document.getElementById('tdmedia-toolbar');
+	if (container) container.remove(); // 🚽 Clean old one
+
+	const toolbar = document.createElement('div');
+	toolbar.className = 'tdmedia-toolbar';
+	toolbar.id = 'tdmedia-toolbar';
+
+	toolbar.innerHTML = `
+		<div class="tdmedia-toolbar-left">
+			<div class="tdmedia-view-toggle">
+				<button data-view="images" class="${tdMedia.state.viewMode === 'images' ? 'is-active' : ''}">
+					<span class="dashicons dashicons-format-image"></span> Images
+				</button>
+				<button data-view="files" class="${tdMedia.state.viewMode === 'files' ? 'is-active' : ''}">
+					<span class="dashicons dashicons-media-document"></span> Files
+				</button>
+			</div>
+		</div>
+
+        <div class="tdmedia-toolbar-center">
+             <div class="tdmedia-search-wrapper">
+				<input type="text" id="tdmedia-search" placeholder="Search by title, alt text, etc…" />
+				<button id="tdmedia-clear-search" title="Clear search" style="display:none;">×</button>
+			</div>
+        </div>
+
+		<div class="tdmedia-toolbar-right">
+            <button id="tdmedia-bulk-toggle" class="tdmedia-bulk-btn">
+                <span class="dashicons dashicons-archive"></span>
+                <span class="tdmedia-bulk-label">Bulk Select Mode</span>
+            </button>
+		</div>
 	`;
 
-	btn.addEventListener('click', () => {
+	const mountPoint = document.getElementById('tdmedia-content');
+	mountPoint.insertBefore(toolbar, mountPoint.firstChild);
+
+	setupToolbarEvents();
+}
+
+
+
+function setupToolbarEvents() {
+	// View buttons
+	document.querySelectorAll('.tdmedia-view-toggle button').forEach(btn => {
+		btn.addEventListener('click', () => {
+			const view = btn.dataset.view;
+			tdMedia.state.viewMode = view;
+			tdMedia.state.selectedItems = [];
+			tdMedia.state.bulkSelectMode = false;
+			renderToolbar();
+			renderGrid(tdMedia.state.items);
+		});
+	});
+
+	// Bulk toggle
+	document.getElementById('tdmedia-bulk-toggle')?.addEventListener('click', () => {
 		tdMedia.state.bulkSelectMode = !tdMedia.state.bulkSelectMode;
 		tdMedia.state.selectedItems = [];
 		tdMedia.state.lastSelectedIndex = null;
-		renderGrid(tdMedia.state.items); // refresh grid to show checkboxes
-		renderViewToggle();
-		renderBulkToggle();
+		renderToolbar();
+		renderGrid(tdMedia.state.items);
 	});
 
-	const target = document.getElementById('tdmedia-view-toggle');
-	if (target?.parentNode) {
-		target.parentNode.insertBefore(btn, target.nextSibling);
-	}
-}
+    const bulkBtn = document.getElementById('tdmedia-bulk-toggle');
+    if (tdMedia.state.bulkSelectMode) {
+        bulkBtn.classList.add('is-active');
+        bulkBtn.querySelector('.tdmedia-bulk-label').textContent = 'Exit Bulk Mode';
+    } else {
+        bulkBtn.classList.remove('is-active');
+        bulkBtn.querySelector('.tdmedia-bulk-label').textContent = 'Bulk Select Mode';
+    }
 
+	// Search
+	const searchInput = document.getElementById('tdmedia-search');
+	const clearBtn = document.getElementById('tdmedia-clear-search');
+
+	searchInput.addEventListener('input', (e) => {
+		const query = e.target.value.trim().toLowerCase();
+		tdMedia.state.searchQuery = query;
+		clearBtn.style.display = query ? 'inline-block' : 'none';
+		renderGrid(tdMedia.state.items);
+	});
+
+	clearBtn.addEventListener('click', () => {
+		searchInput.value = '';
+		tdMedia.state.searchQuery = '';
+		clearBtn.style.display = 'none';
+		renderGrid(tdMedia.state.items);
+	});
+}
 
 
 

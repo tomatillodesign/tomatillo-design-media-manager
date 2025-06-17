@@ -83,5 +83,7 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 		'1.0'
 	);
 
+	wp_enqueue_script( 'jszip', 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', [], null, true );
+
 	// Localized settings or nonce can be passed here later
 } );
