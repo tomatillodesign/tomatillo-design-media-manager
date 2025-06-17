@@ -11,6 +11,9 @@ const tdMedia = {
 		items: [],
 		startTime: null,
         viewMode: 'images', // 🆕 default to images
+        bulkSelectMode: false,           // 🆕 new
+        selectedItems: [],               // 🆕 list of selected IDs
+        lastSelectedIndex: null,         // 🆕 for shift-click support
 	},
 	elements: {
 		app: null,
@@ -47,6 +50,8 @@ function createTdMediaItem(item, basis, index = 0) {
 	div.className = 'tdmedia-item';
 	div.style.flexBasis = `${basis}px`;
 	div.style.height = '360px';
+	div.dataset.index = index;
+	div.dataset.id = item.id;
 
 	const width = item.media_details?.width || '—';
 	const height = item.media_details?.height || '—';
@@ -79,7 +84,7 @@ function createTdMediaItem(item, basis, index = 0) {
 		</div>
 		<div class="tdmedia-overlay">
 			<div class="tdmedia-title">${filename}</div>
-            <div class="tdmedia-counter">#${index}</div>
+			<div class="tdmedia-counter">#${index + 1}</div>
 			<div>ID: ${item.id}</div>
 			<div>Type: ${displayType}</div>
 			<div>File: ${fileSizeKb} KB</div>
@@ -88,7 +93,7 @@ function createTdMediaItem(item, basis, index = 0) {
 		</div>
 	`;
 
-	// Optional alt + caption hover
+	// 📝 Optional alt/caption display
 	const rawCaption = item.caption?.rendered || '';
 	const cleanCaption = rawCaption.replace(/^<p>(.*?)<\/p>$/i, '$1');
 	const overlay = div.querySelector('.tdmedia-overlay');
@@ -103,11 +108,19 @@ function createTdMediaItem(item, basis, index = 0) {
 		overlay.appendChild(metaDetails);
 	}
 
-	// 🔥 Modal click: clean and delegated
-	div.addEventListener('click', () => {
-		console.log('[TDMEDIA] Opening modal for ID:', item.id);
-		window.tdmediaCurrentIndex = tdmediaItems.findIndex(i => i.id === item.id);
-		openTdMediaModal(item);
+	// ✅ Selection state class (no re-render needed)
+	if (tdMedia.state.bulkSelectMode) {
+		div.classList.toggle('is-selected', tdMedia.state.selectedItems.includes(item.id));
+	}
+
+	// 🧠 Single click handler for both modes
+	div.addEventListener('click', (e) => {
+		e.preventDefault();
+		if (tdMedia.state.bulkSelectMode) {
+			handleBulkCardClick(item.id, index, e);
+		} else {
+			openTdMediaModal(item);
+		}
 	});
 
 	return div;
@@ -115,9 +128,18 @@ function createTdMediaItem(item, basis, index = 0) {
 
 
 
+
+
 function openTdMediaModal(item) {
 	console.log('[TDMEDIA] Injecting modal for:', item);
 	document.getElementById('tdmedia-modal')?.remove();
+
+    const isImage = item.mime_type?.startsWith('image/');
+    const currentViewItems = tdmediaItems.filter(i =>
+        isImage ? i.mime_type?.startsWith('image/') : !i.mime_type?.startsWith('image/')
+    );
+    const currentIndex = currentViewItems.findIndex(i => i.id === item.id);
+
 
 	const filename = item.title?.rendered || '(No name)';
 	const rawCaption = item.caption?.rendered || '';
@@ -185,6 +207,10 @@ function openTdMediaModal(item) {
 					<a id="tdmedia-download-link" href="${item.source_url}" download target="_blank" rel="noopener">
 						<button type="button">Download Original File</button>
 					</a>
+                    <button type="button" id="tdmedia-delete-file" style="margin-left: auto; color: red; background: none; border: none; text-decoration: underline; cursor: pointer;">
+                        Delete File
+                    </button>
+
 				</div>
 
 				<form id="tdmedia-meta-form">
@@ -205,8 +231,8 @@ function openTdMediaModal(item) {
 				</form>
 
 				<div class="tdmedia-modal-nav">
-					<button id="tdmedia-prev" ${window.tdmediaCurrentIndex === 0 ? 'disabled' : ''}>&larr; Prev</button>
-					<button id="tdmedia-next" ${window.tdmediaCurrentIndex === tdmediaItems.length - 1 ? 'disabled' : ''}>Next &rarr;</button>
+					<button id="tdmedia-prev" ${currentIndex === 0 ? 'disabled' : ''}>&larr; Prev</button>
+                    <button id="tdmedia-next" ${currentIndex === currentViewItems.length - 1 ? 'disabled' : ''}>Next &rarr;</button>
 				</div>
 			</div>
 		</div>
@@ -222,7 +248,9 @@ function openTdMediaModal(item) {
 		if (e.key === 'Escape') {
 			closeModal();
 			document.removeEventListener('keydown', escClose);
+            document.removeEventListener('keydown', keyHandler);
 		}
+        
 	});
 
 	// Copy URL
@@ -271,20 +299,132 @@ function openTdMediaModal(item) {
 
 	// Prev/Next
 	document.getElementById('tdmedia-prev')?.addEventListener('click', () => {
-		if (window.tdmediaCurrentIndex > 0) {
-			window.tdmediaCurrentIndex--;
-			openTdMediaModal(tdmediaItems[window.tdmediaCurrentIndex]);
-		}
-	});
+        if (currentIndex > 0) {
+            openTdMediaModal(currentViewItems[currentIndex - 1]);
+        }
+    });
+
 	document.getElementById('tdmedia-next')?.addEventListener('click', () => {
-		if (window.tdmediaCurrentIndex < tdmediaItems.length - 1) {
-			window.tdmediaCurrentIndex++;
-			openTdMediaModal(tdmediaItems[window.tdmediaCurrentIndex]);
-		}
-	});
+        if (currentIndex < currentViewItems.length - 1) {
+            openTdMediaModal(currentViewItems[currentIndex + 1]);
+        }
+    });
+
+    // Keyboard navigation
+    const keyHandler = (e) => {
+        if (!document.getElementById('tdmedia-modal')) return;
+
+        if (e.key === 'ArrowLeft' && currentIndex > 0) {
+            openTdMediaModal(currentViewItems[currentIndex - 1]);
+        } else if (e.key === 'ArrowRight' && currentIndex < currentViewItems.length - 1) {
+            openTdMediaModal(currentViewItems[currentIndex + 1]);
+        } else if (e.key === 'Escape') {
+            closeModal();
+        }
+    };
+
+    document.addEventListener('keydown', keyHandler);
+
+    document.getElementById('tdmedia-delete-file')?.addEventListener('click', async () => {
+        if (!confirm('Are you absolutely sure you want to permanently delete this file from the media library?')) return;
+
+        try {
+            const res = await wp.apiFetch({
+                path: `/wp/v2/media/${item.id}?force=true`,
+                method: 'DELETE'
+            });
+
+            console.log('[TDMEDIA] Deleted:', res);
+
+            // Remove from tdmediaItems and refresh grid
+            tdmediaItems = tdmediaItems.filter(i => i.id !== item.id);
+            tdMedia.state.items = tdmediaItems;
+            renderGrid(tdmediaItems);
+
+            alert('File successfully deleted.');
+            document.getElementById('tdmedia-modal')?.remove();
+
+        } catch (err) {
+            console.error('[TDMEDIA] Failed to delete:', err);
+            alert('⚠️ Failed to delete this file. Check console for details.');
+        }
+    });
+
+
+
 }
 
 
+
+function handleBulkCheckboxClick(id, index, event) {
+	const selected = tdMedia.state.selectedItems;
+	const isChecked = selected.includes(id);
+
+	if (event.shiftKey && tdMedia.state.lastSelectedIndex !== null) {
+		// Get visible items based on current view
+		const items = tdMedia.state.items.filter(i =>
+			tdMedia.state.viewMode === 'images'
+				? i.mime_type?.startsWith('image/')
+				: !i.mime_type?.startsWith('image/')
+		);
+		const start = Math.min(tdMedia.state.lastSelectedIndex, index);
+		const end = Math.max(tdMedia.state.lastSelectedIndex, index);
+		for (let i = start; i <= end; i++) {
+			const thisId = items[i]?.id;
+			if (thisId && !selected.includes(thisId)) {
+				selected.push(thisId);
+			}
+		}
+	} else {
+		if (isChecked) {
+			tdMedia.state.selectedItems = selected.filter(i => i !== id);
+		} else {
+			tdMedia.state.selectedItems.push(id);
+		}
+		tdMedia.state.lastSelectedIndex = index;
+	}
+
+	renderGrid(tdMedia.state.items); // Refresh to update checkbox UI
+}
+
+function handleBulkCardClick(id, index, event) {
+	const selected = tdMedia.state.selectedItems;
+	const isChecked = selected.includes(id);
+
+	if (event.shiftKey && tdMedia.state.lastSelectedIndex !== null) {
+		const items = tdMedia.state.items.filter(i =>
+			tdMedia.state.viewMode === 'images'
+				? i.mime_type?.startsWith('image/')
+				: !i.mime_type?.startsWith('image/')
+		);
+		const start = Math.min(tdMedia.state.lastSelectedIndex, index);
+		const end = Math.max(tdMedia.state.lastSelectedIndex, index);
+		for (let i = start; i <= end; i++) {
+			const thisId = items[i]?.id;
+			if (thisId && !selected.includes(thisId)) {
+				selected.push(thisId);
+			}
+		}
+	} else {
+		if (isChecked) {
+			tdMedia.state.selectedItems = selected.filter(i => i !== id);
+		} else {
+			tdMedia.state.selectedItems.push(id);
+		}
+		tdMedia.state.lastSelectedIndex = index;
+	}
+
+	// No re-render needed — just update selected class
+	updateBulkSelectionUI();
+}
+
+function updateBulkSelectionUI() {
+	const cards = document.querySelectorAll('.tdmedia-item, .tdmedia-file-card');
+	cards.forEach((card) => {
+		const id = parseInt(card.dataset.id, 10);
+		card.classList.toggle('is-selected', tdMedia.state.selectedItems.includes(id));
+	});
+}
 
 
 
@@ -405,6 +545,7 @@ function init() {
     document.body.style.cursor = 'progress'; // start
     setupSearchInput();
     renderViewToggle();
+    renderBulkToggle();
 
     // Step 2: fetch most recent 24 fresh
     fetch(`/wp-json/wp/v2/media?per_page=24&orderby=date&order=desc&_fields=${tdMedia.settings.fieldsParam}`)
@@ -489,6 +630,8 @@ function renderGrid(items) {
         appRoot.classList.add(
             tdMedia.state.viewMode === 'files' ? 'tdmedia-view-files' : 'tdmedia-view-images'
         );
+
+        appRoot.classList.toggle('tdmedia-bulk-active', tdMedia.state.bulkSelectMode);
     }
 
 	if (tdMedia.state.viewMode === 'images') {
@@ -533,30 +676,37 @@ function getFriendlyExtension(mime = '') {
 
 
 function renderFileList(files) {
+
+    const appRoot = document.getElementById('tdmedia-content');
+    if (appRoot) {
+        appRoot.classList.toggle('tdmedia-bulk-active', tdMedia.state.bulkSelectMode);
+    }
+
 	const grid = tdMedia.elements.grid;
 	grid.innerHTML = '';
 
 	const gridWrap = document.createElement('div');
 	gridWrap.className = 'tdmedia-file-grid';
 
-	files.forEach(file => {
+	files.forEach((file, index) => {
 		const div = document.createElement('div');
 		div.className = 'tdmedia-file-card';
+		div.dataset.index = index;
+        div.dataset.id = file.id; // ✅ Use file here, not item
 
 		const filename = file.title?.rendered || '(No name)';
-        div.title = filename;
+		div.title = filename;
 		const mime = file.mime_type || 'Unknown';
-        const ext = getFriendlyExtension(mime);
-        const uploaded = new Date(file.date).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-        const fileSizeKb = Math.round((file.media_details?.filesize || 0) / 1024);
-        const readableSize = fileSizeKb >= 1024
-            ? `${(fileSizeKb / 1024).toFixed(1)} MB`
-            : `${fileSizeKb} KB`;
-
+		const ext = getFriendlyExtension(mime);
+		const uploaded = new Date(file.date).toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		});
+		const fileSizeKb = Math.round((file.media_details?.filesize || 0) / 1024);
+		const readableSize = fileSizeKb >= 1024
+			? `${(fileSizeKb / 1024).toFixed(1)} MB`
+			: `${fileSizeKb} KB`;
 
 		let thumbUrl = '';
 		if (mime === 'application/pdf') {
@@ -567,25 +717,37 @@ function renderFileList(files) {
 
 		div.innerHTML = `
 			<div class="tdmedia-file-thumb">
-				${thumbUrl ? `<img src="${thumbUrl}" alt="${filename}" />`
-				           : `<span class="dashicons ${iconClass}"></span>`}
+				${thumbUrl
+					? `<img src="${thumbUrl}" alt="${filename}" />`
+					: `<span class="dashicons ${iconClass}"></span>`}
 			</div>
 			<div class="tdmedia-file-info">
-                <div class="tdmedia-file-name">${filename}</div>
-                <div class="tdmedia-file-type">${ext.toUpperCase()}</div>
-                <div class="tdmedia-file-type">${readableSize}</div>
-                <div class="tdmedia-file-meta">${uploaded}</div>
-            </div>
-
+				<div class="tdmedia-file-name">${filename}</div>
+				<div class="tdmedia-file-type">${ext.toUpperCase()}</div>
+				<div class="tdmedia-file-type">${readableSize}</div>
+				<div class="tdmedia-file-meta">${uploaded}</div>
+			</div>
 		`;
 
-		div.addEventListener('click', () => openTdMediaModal(file));
+        // bulk select mode
+		if (tdMedia.state.bulkSelectMode) {
+            div.classList.toggle('is-selected', tdMedia.state.selectedItems.includes(file.id));
+            div.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleBulkCardClick(file.id, index, e);
+            });
+        } else {
+            div.addEventListener('click', () => {
+                openTdMediaModal(file);
+            });
+        }
 
 		gridWrap.appendChild(div);
 	});
 
 	grid.appendChild(gridWrap);
 }
+
 
 
 
@@ -901,7 +1063,7 @@ function setupSearchInput() {
 		searchTimeout = setTimeout(() => {
 			const query = rawValue.trim().toLowerCase();
 
-			if (query.length < 3) {
+			if (query.length < 2) {
 				renderGrid(tdMedia.state.items); // Show all
 				renderStatus('Search cleared (showing all items)');
 				return;
@@ -984,6 +1146,40 @@ function renderViewToggle() {
 		searchWrap.insertAdjacentElement('afterend', wrap);
 	}
 }
+
+
+function renderBulkToggle() {
+	const existing = document.getElementById('tdmedia-bulk-toggle');
+	if (existing) existing.remove();
+
+	const btn = document.createElement('button');
+	btn.id = 'tdmedia-bulk-toggle';
+	btn.textContent = tdMedia.state.bulkSelectMode ? '✖ Exit Bulk Select' : '🗂 Bulk Select Mode';
+	btn.style = `
+		margin-left: 1rem;
+		padding: 0.4rem 0.75rem;
+		font-size: 13px;
+		border: 1px solid #ccc;
+		background: #fff;
+		cursor: pointer;
+		border-radius: 4px;
+	`;
+
+	btn.addEventListener('click', () => {
+		tdMedia.state.bulkSelectMode = !tdMedia.state.bulkSelectMode;
+		tdMedia.state.selectedItems = [];
+		tdMedia.state.lastSelectedIndex = null;
+		renderGrid(tdMedia.state.items); // refresh grid to show checkboxes
+		renderViewToggle();
+		renderBulkToggle();
+	});
+
+	const target = document.getElementById('tdmedia-view-toggle');
+	if (target?.parentNode) {
+		target.parentNode.insertBefore(btn, target.nextSibling);
+	}
+}
+
 
 
 
