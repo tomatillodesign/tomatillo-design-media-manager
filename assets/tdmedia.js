@@ -698,7 +698,38 @@ async function fetchInitialBatch() {
 
 
 
+// function renderGrid(items) {
+// 	const appRoot = document.getElementById('tdmedia-content');
+// 	if (appRoot) {
+// 		appRoot.classList.remove('tdmedia-view-files', 'tdmedia-view-images');
+// 		appRoot.classList.add(
+// 			tdMedia.state.viewMode === 'files' ? 'tdmedia-view-files' : 'tdmedia-view-images'
+// 		);
+// 		appRoot.classList.toggle('tdmedia-bulk-active', tdMedia.state.bulkSelectMode);
+// 	}
+
+// 	if (tdMedia.state.viewMode === 'images') {
+// 		const images = items.filter(i => i.mime_type?.startsWith('image/'));
+// 		layoutRows(images, true);
+// 	} else {
+// 		const files = items.filter(i => !i.mime_type?.startsWith('image/'));
+// 		renderFileList(files);
+// 	}
+
+// 	// 🧠 Always check if bulk toolbar should show
+// 	renderBulkActionBar();
+// }
+
+
 function renderGrid(items) {
+
+    console.log(`[TDMEDIA] renderGrid called with ${items.length} item(s)`);
+    setTimeout(() => {
+        const gridItems = document.querySelectorAll('.tdmedia-item, .tdmedia-file-card');
+        console.log(`[TDMEDIA] Grid actually rendered ${gridItems.length} item(s) in the DOM`);
+    }, 100); // slight delay in case of async DOM creation
+
+
 	const appRoot = document.getElementById('tdmedia-content');
 	if (appRoot) {
 		appRoot.classList.remove('tdmedia-view-files', 'tdmedia-view-images');
@@ -710,15 +741,21 @@ function renderGrid(items) {
 
 	if (tdMedia.state.viewMode === 'images') {
 		const images = items.filter(i => i.mime_type?.startsWith('image/'));
-		layoutRows(images, true);
+		
+		// 🐢 Give the DOM a beat to settle
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				layoutRows(images, true);
+			});
+		});
 	} else {
 		const files = items.filter(i => !i.mime_type?.startsWith('image/'));
 		renderFileList(files);
 	}
 
-	// 🧠 Always check if bulk toolbar should show
 	renderBulkActionBar();
 }
+
 
 
 
@@ -843,10 +880,13 @@ function layoutRows(items, clear = true) {
 	const targetRowHeight = 360;
 	const spacing = 16;
 
+    console.log('[TDMEDIA] Grid width for layout:', grid.clientWidth);
+
+
 	items.forEach((item, index) => {
 
         // Sanity check: log mime type and ID
-	console.log(`[TDMEDIA] Processing item ID: ${item.id}, mime: ${item.mime_type}`);
+	    // console.log(`[TDMEDIA] Processing item ID: ${item.id}, mime: ${item.mime_type}`);
 
 	// Skip if not a photo
 	if (!item.mime_type || !item.mime_type.startsWith('image/')) {
@@ -921,7 +961,6 @@ async function startBackgroundLoad() {
 	const allItems = [];
 
 	try {
-		// Fetch page 1 and get totalPages from headers
 		const firstResp = await fetch(`/wp-json/wp/v2/media?per_page=100&page=1&orderby=date&order=desc&_fields=${tdMedia.settings.fieldsParam}`);
 		if (!firstResp.ok) throw new Error(`Failed to fetch page 1 (${firstResp.status})`);
 
@@ -931,7 +970,6 @@ async function startBackgroundLoad() {
 		const totalPages = parseInt(firstResp.headers.get('X-WP-TotalPages') || '1', 10);
 		console.log(`[TDMEDIA] Total pages to load: ${totalPages}`);
 
-		// Fetch remaining pages
 		for (let page = 2; page <= totalPages; page++) {
 			const resp = await fetch(`/wp-json/wp/v2/media?per_page=100&page=${page}&orderby=date&order=desc&_fields=${tdMedia.settings.fieldsParam}`);
 			if (!resp.ok) {
@@ -948,13 +986,13 @@ async function startBackgroundLoad() {
 
 		saveToCache(allItems);
 
-		// Only render if nothing was shown yet (i.e., no cache used)
-		if (!tdMedia.state.items.length) {
-			tdMedia.state.items = allItems;
-			renderGrid(allItems);
-		}
+		// 🔥 THIS LINE FIXES EVERYTHING:
+		tdMedia.state.items = allItems;
+		renderGrid(allItems);
 
-		// Now perform hydration diff
+		console.log(`[TDMEDIA] Background load finished with ${allItems.length} items`);
+
+		// Now hydrate for diffs
 		hydrateFromRest();
 
 	} catch (err) {
@@ -962,6 +1000,7 @@ async function startBackgroundLoad() {
 		renderStatus('❌ Error during background load.');
 	}
 }
+
 
 
 
@@ -1064,32 +1103,46 @@ async function hydrateFromRest() {
 		// Step 4: re-fetch updated/new items
 		const updatedItems = [];
 
-        if (updatedIds.length === 0) {
-            console.log('[TDMEDIA] No updates to fetch');
-            applyHydrationUpdates([], removedIds);
-            return;
-        }
+		if (updatedIds.length === 0) {
+			console.log('[TDMEDIA] No updates to fetch');
+			applyHydrationUpdates([], removedIds);
+			return;
+		}
 
-		const chunk = (arr, size) => arr.length <= size ? [arr] : arr.reduce((acc, _, i) => {
-			if (i % size === 0) acc.push(arr.slice(i, i + size));
-			return acc;
-		}, []);
+		function chunk(arr, size) {
+			const out = [];
+			for (let i = 0; i < arr.length; i += size) {
+				out.push(arr.slice(i, i + size));
+			}
+			return out;
+		}
 
-		for (const group of chunk(updatedIds, 20)) {
-			const resp = await fetch(`/wp-json/wp/v2/media?include=${group.join(',')}&_fields=${tdMedia.settings.fieldsParam}`);
-			if (resp.ok) {
+		const chunks = chunk(updatedIds, 20);
+		for (const group of chunks) {
+			try {
+				const resp = await fetch(`/wp-json/wp/v2/media?include=${group.join(',')}&_fields=${tdMedia.settings.fieldsParam}`);
+				if (!resp.ok) {
+					console.warn(`[TDMEDIA] Chunk failed: ${resp.status}`);
+					continue;
+				}
 				const batch = await resp.json();
-				batch.forEach(i => i._td_from_cache = false); // mark fresh
+				batch.forEach(i => i._td_from_cache = false);
 				updatedItems.push(...batch);
+			} catch (err) {
+				console.warn('[TDMEDIA] Chunk fetch error:', err);
 			}
 		}
 
+		console.log(`[TDMEDIA] Hydration: Retrieved ${updatedItems.length} updated items (out of ${updatedIds.length})`);
 		applyHydrationUpdates(updatedItems, removedIds);
 
 	} catch (err) {
 		console.error('[TDMEDIA] Hydration failed:', err);
 	}
+
+	console.log(`[TDMEDIA] Hydration completed. Final item count: ${tdMedia.state.items.length}`);
 }
+
 
 
 /**
