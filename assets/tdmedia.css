@@ -385,7 +385,7 @@
 
 /* Left-hand side: image or icon */
 .tdmedia-modal-left {
-	width: 100%;
+	width: auto;
 	min-width: 300px;
 	min-height: 300px;
 	display: flex;
@@ -590,17 +590,40 @@ ul.tdmedia-meta-list {
 #tdmedia-uploading-overlay {
 	position: fixed;
 	inset: 0;
-	background: rgba(255, 255, 255, 0.85);
-	display: none;
-	justify-content: center;
-	align-items: center;
 	z-index: 9999;
-	font-size: 18px;
-	color: #333;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(255, 255, 255, 0.9); /* translucent white */
+	backdrop-filter: blur(10px);          /* 💫 frosted effect */
+	-webkit-backdrop-filter: blur(10px);  /* Safari support */
+	pointer-events: all;
+	cursor: wait;
 }
+
 
 .wp-admin.tdmedia-uploading {
 	cursor: wait !important;
+}
+
+body.tdmedia-uploading,
+body.tdmedia-uploading * {
+	cursor: wait !important;
+}
+
+.tdmedia-spinner {
+	width: 128px;
+	height: 128px;
+	border: 18px solid #ccc;
+	border-top: 18px solid var(--yak-color-primary, #2363e0);
+	border-radius: 50%;
+	animation: spin 5s linear infinite;
+	margin: 1rem auto;
+}
+
+@keyframes spin {
+	from { transform: rotate(0deg); }
+	to   { transform: rotate(360deg); }
 }
 
 

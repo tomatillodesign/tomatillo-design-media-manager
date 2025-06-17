@@ -36,7 +36,9 @@ function tdmedia_render_manager_page() {
 			<!-- Upload Overlay -->
 			<div id="tdmedia-uploading-overlay" class="tdmedia-uploading-overlay" style="display: none;">
 				<div class="tdmedia-uploading-inner">
-					<div class="clb-tdmedia-uploading-in-progress-text-wrapper"><p>Uploading…</p></div>
+					<div class="clb-tdmedia-uploading-in-progress-text-wrapper">
+						<div class="tdmedia-spinner" aria-label="Uploading…"></div>
+					</div>
 					<div class="tdmedia-progress-bar">
 						<div id="tdmedia-progress-bar-inner-overlay" class="tdmedia-progress-bar-inner"></div>
 					</div>

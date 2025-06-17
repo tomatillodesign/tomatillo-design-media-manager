@@ -1382,13 +1382,33 @@ function setupToolbarEvents() {
 }
 
 
-
 function setupUploadZone(statusEl, fetchMedia) {
 	const zone = document.getElementById('tdmedia-upload-zone');
 	const overlay = document.getElementById('tdmedia-uploading-overlay');
 	const overlayBar = document.getElementById('tdmedia-progress-bar-inner-overlay');
 	const toolbarWrapper = document.getElementById('tdmedia-progress-wrapper');
 	const toolbarBar = document.getElementById('tdmedia-progress-bar-inner');
+
+	// Enforce cursor: wait across weird WP elements
+	function lockCursorHard() {
+		document.body.classList.add('tdmedia-uploading');
+		document.body.style.cursor = 'wait';
+		document.addEventListener('mousemove', forceWaitCursor, true);
+		document.addEventListener('mouseover', forceWaitCursor, true);
+		document.addEventListener('mouseenter', forceWaitCursor, true);
+	}
+
+	function unlockCursor() {
+		document.body.classList.remove('tdmedia-uploading');
+		document.body.style.cursor = '';
+		document.removeEventListener('mousemove', forceWaitCursor, true);
+		document.removeEventListener('mouseover', forceWaitCursor, true);
+		document.removeEventListener('mouseenter', forceWaitCursor, true);
+	}
+
+	function forceWaitCursor(e) {
+		e.target.style.cursor = 'wait';
+	}
 
 	// Highlight drop zone
 	['dragenter', 'dragover'].forEach(event => {
@@ -1413,15 +1433,13 @@ function setupUploadZone(statusEl, fetchMedia) {
 		e.preventDefault();
 		e.stopPropagation();
 
-        document.body.style.cursor = 'wait';
-
-		const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+		const files = [...e.dataTransfer.files];
 		if (files.length === 0) return;
 
 		statusEl.textContent = `Uploading ${files.length} image(s)…`;
 
 		// Show UI
-		document.body.classList.add('tdmedia-uploading');
+		lockCursorHard();
 		overlay.style.display = 'flex';
 		toolbarWrapper.style.display = 'block';
 		overlayBar.style.width = '0%';
@@ -1452,18 +1470,15 @@ function setupUploadZone(statusEl, fetchMedia) {
 		}
 
 		// Done
-		document.body.classList.remove('tdmedia-uploading');
+		unlockCursor();
 		overlay.style.display = 'none';
 		toolbarWrapper.style.display = 'none';
 		statusEl.textContent = 'Upload complete. Refreshing…';
 
 		await fetchMedia(); // re-fetch latest media
-        document.body.style.cursor = ''; // reset to default
-
 	});
-
-
 }
+
 
 
 
