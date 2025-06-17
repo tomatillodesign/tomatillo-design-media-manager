@@ -18,7 +18,12 @@
 	gap: 16px;
 }
 
-
+.tdmedia-row:last-of-type {
+	display: flex;
+	justify-content: flex-start;
+	flex-direction: row;
+	gap: 16px;
+}
 
 .tdmedia-item {
 	flex: 0 0 auto;
@@ -90,8 +95,92 @@
 }
 
 
+.tdmedia-file-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 1rem;
+}
+
+.tdmedia-file-card {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: center;
+	text-align: center;
+	padding: 1rem;
+	border-radius: 6px;
+	background: #fff;
+	cursor: pointer;
+	transition: all 0.33s ease-in-out;
+	height: 300px;
+	overflow: hidden;
+	box-shadow: 0 0 12px rgba(0, 0, 0, 0.1);
+}
 
 
+.tdmedia-file-card:hover {
+	background: #333;
+	box-shadow: 0 0 16px rgba(0, 0, 0, 0.18);
+}
+
+.tdmedia-file-thumb {
+	width: 100%;
+	flex-grow: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	margin-bottom: 0.75rem;
+	overflow: hidden;
+}
+
+
+.tdmedia-file-thumb img {
+	max-height: 100%;
+	width: 100%;
+	object-fit: cover;
+	object-position: top center;
+}
+
+.tdmedia-file-thumb .dashicons {
+	font-size: 64px;
+	color: #777;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+}
+
+
+.tdmedia-file-info {
+	width: 100%;
+}
+
+.tdmedia-file-name {
+	font-weight: bold;
+	font-size: 13px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	transition: all 0.33s ease-in-out;
+}
+
+.tdmedia-file-type,
+.tdmedia-file-meta {
+	transition: all 0.33s ease-in-out;
+	font-size: 12px;
+	color: #555;
+	margin-top: 0.15rem;
+}
+
+.tdmedia-file-card:hover .tdmedia-file-type,
+.tdmedia-file-card:hover .tdmedia-file-name,
+.tdmedia-file-card:hover .tdmedia-file-meta {
+	color: #fff;
+}
 
 /* Modal wrapper */
 #tdmedia-modal {
@@ -141,8 +230,10 @@
 
 /* Image section */
 .tdmedia-modal-image {
-    height: 100%;
-	flex: 1 1 60%;
+	width: 100%;
+	height: 100%;
+	min-width: 300px;
+	min-height: 300px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -151,6 +242,17 @@
 	overflow: hidden;
 	border-radius: 0;
 }
+
+.tdmedia-modal-image .dashicons {
+	display: flex; /* 🆕 makes it respect flex centering */
+	align-items: center;
+	justify-content: center;
+	width: 100%;   /* 🆕 stretch it */
+	height: 100%;  /* 🆕 stretch it */
+	font-size: 96px;
+	color: #666;
+}
+
 
 .tdmedia-modal-image img {
 	max-width: 100%;

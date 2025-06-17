@@ -10,6 +10,7 @@ const tdMedia = {
 	state: {
 		items: [],
 		startTime: null,
+        viewMode: 'images', // 🆕 default to images
 	},
 	elements: {
 		app: null,
@@ -41,7 +42,7 @@ function formatDate(dateString) {
 
 
 
-function createTdMediaItem(item, basis) {
+function createTdMediaItem(item, basis, index = 0) {
 	const div = document.createElement('div');
 	div.className = 'tdmedia-item';
 	div.style.flexBasis = `${basis}px`;
@@ -78,6 +79,7 @@ function createTdMediaItem(item, basis) {
 		</div>
 		<div class="tdmedia-overlay">
 			<div class="tdmedia-title">${filename}</div>
+            <div class="tdmedia-counter">#${index}</div>
 			<div>ID: ${item.id}</div>
 			<div>Type: ${displayType}</div>
 			<div>File: ${fileSizeKb} KB</div>
@@ -115,15 +117,21 @@ function createTdMediaItem(item, basis) {
 
 function openTdMediaModal(item) {
 	console.log('[TDMEDIA] Injecting modal for:', item);
-
-	// Remove any existing modal
 	document.getElementById('tdmedia-modal')?.remove();
 
 	const filename = item.title?.rendered || '(No name)';
 	const rawCaption = item.caption?.rendered || '';
 	const strippedCaption = rawCaption.trim().replace(/^<p>([\s\S]*?)<\/p>$/i, '$1');
-	const width = item.media_details?.width || '—';
-	const height = item.media_details?.height || '—';
+
+	const hasDimensions = item.media_details?.width && item.media_details?.height;
+	const width = hasDimensions ? item.media_details.width : null;
+	const height = hasDimensions ? item.media_details.height : null;
+
+	const fileSizeKb = Math.round((item.media_details?.filesize || 0) / 1024);
+	const readableSize = fileSizeKb >= 1024
+		? `${(fileSizeKb / 1024).toFixed(1)} MB`
+		: `${fileSizeKb} KB`;
+
 	const uploaded = new Date(item.date).toLocaleDateString('en-US', {
 		month: 'short',
 		day: 'numeric',
@@ -131,36 +139,42 @@ function openTdMediaModal(item) {
 	});
 
 	let displayType = 'Original — ' + (item.mime_type || 'image/jpeg');
-	let fileSizeKb = Math.round((item.media_details?.filesize || 0) / 1024) || '—';
-	let imageUrl = item.source_url;
+	let imageUrl = null;
 
-	if (item._avif_url) {
-		displayType = 'AVIF';
-		fileSizeKb = item._avif_size_kb || fileSizeKb;
-		imageUrl = item._avif_url;
-	} else if (item._webp_url) {
-		displayType = 'WebP';
-		fileSizeKb = item._webp_size_kb || fileSizeKb;
-		imageUrl = item._webp_url;
-	}
+    if (item.mime_type?.startsWith('image/')) {
+        imageUrl = item._avif_url || item._webp_url || item.source_url;
+    } else if (item.mime_type === 'application/pdf') {
+        imageUrl = item.media_details?.sizes?.full?.source_url || null;
+    }
+
+    const fallbackIcon = getIconClassForMime(item.mime_type);
 
 	const modal = document.createElement('div');
-	modal.id = 'tdmedia-modal';
+    modal.id = 'tdmedia-modal';
+    const viewClass = item.mime_type?.startsWith('image/') ? 'is-image' : 'is-file';
+    modal.className = `tdmedia-modal-wrapper ${viewClass}`;
+
 	modal.innerHTML = `
 		<div class="tdmedia-modal-overlay"></div>
 		<div class="tdmedia-modal-content" role="dialog" aria-modal="true">
 			<div class="tdmedia-modal-left">
 				<div class="tdmedia-modal-image">
-					<img src="${imageUrl}" alt="${item.alt_text || filename}" />
-				</div>
+                    ${imageUrl
+                        ? `<img src="${imageUrl}" alt="${item.alt_text || filename}" />`
+                        : `<span class="dashicons ${fallbackIcon}" style="font-size: 96px; color: #666;"></span>`
+                    }
+                </div>
 			</div>
 			<div class="tdmedia-modal-right">
 				<h2>${filename}</h2>
 				<ul class="tdmedia-meta-list">
 					<li><strong>ID:</strong> ${item.id}</li>
 					<li><strong>Type:</strong> ${displayType}</li>
-					<li><strong>Size:</strong> ${width}×${height}</li>
-					<li><strong>File:</strong> ${fileSizeKb} KB</li>
+					${item.mime_type?.startsWith('image/')
+                        ? `<li><strong>Size:</strong> ${width && height ? `${width}×${height}` : '—'}</li>`
+                        : ''
+                    }
+					<li><strong>File:</strong> ${readableSize}</li>
 					<li><strong>Uploaded:</strong> ${uploaded}</li>
 					<li><strong>URL:</strong> <span class="clb-pre">${imageUrl}</span></li>
 					<li><strong>Original File:</strong> <span class="clb-pre">${item.source_url}</span></li>
@@ -255,7 +269,7 @@ function openTdMediaModal(item) {
 		}
 	});
 
-	// Prev/Next buttons
+	// Prev/Next
 	document.getElementById('tdmedia-prev')?.addEventListener('click', () => {
 		if (window.tdmediaCurrentIndex > 0) {
 			window.tdmediaCurrentIndex--;
@@ -269,6 +283,7 @@ function openTdMediaModal(item) {
 		}
 	});
 }
+
 
 
 
@@ -389,6 +404,7 @@ function init() {
 
     document.body.style.cursor = 'progress'; // start
     setupSearchInput();
+    renderViewToggle();
 
     // Step 2: fetch most recent 24 fresh
     fetch(`/wp-json/wp/v2/media?per_page=24&orderby=date&order=desc&_fields=${tdMedia.settings.fieldsParam}`)
@@ -466,8 +482,113 @@ async function fetchInitialBatch() {
 
 
 function renderGrid(items) {
-	layoutRows(items, true);
+
+    const appRoot = document.getElementById('tdmedia-content');
+    if (appRoot) {
+        appRoot.classList.remove('tdmedia-view-files', 'tdmedia-view-images');
+        appRoot.classList.add(
+            tdMedia.state.viewMode === 'files' ? 'tdmedia-view-files' : 'tdmedia-view-images'
+        );
+    }
+
+	if (tdMedia.state.viewMode === 'images') {
+		const images = items.filter(i => i.mime_type?.startsWith('image/'));
+		layoutRows(images, true);
+	} else {
+		const files = items.filter(i => !i.mime_type?.startsWith('image/'));
+		renderFileList(files);
+	}
 }
+
+
+
+function getIconClassForMime(mime) {
+	if (mime.includes('pdf')) return 'dashicons-media-document';
+	if (mime.includes('word')) return 'dashicons-media-text';
+	if (mime.includes('zip')) return 'dashicons-media-archive';
+	if (mime.includes('audio')) return 'dashicons-media-audio';
+	if (mime.includes('video')) return 'dashicons-media-video';
+	return 'dashicons-media-default';
+}
+
+function getFriendlyExtension(mime = '') {
+	const extMap = {
+		'application/pdf': 'pdf',
+		'application/zip': 'zip',
+		'application/msword': 'doc',
+		'application/vnd.ms-excel': 'xls',
+		'application/vnd.ms-powerpoint': 'ppt',
+		'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+	};
+
+	if (extMap[mime]) return extMap[mime];
+
+	const guess = mime.split('/')[1] || '';
+	return guess.length > 6 ? guess.slice(0, 6).toLowerCase() : guess.toLowerCase();
+}
+
+
+
+
+function renderFileList(files) {
+	const grid = tdMedia.elements.grid;
+	grid.innerHTML = '';
+
+	const gridWrap = document.createElement('div');
+	gridWrap.className = 'tdmedia-file-grid';
+
+	files.forEach(file => {
+		const div = document.createElement('div');
+		div.className = 'tdmedia-file-card';
+
+		const filename = file.title?.rendered || '(No name)';
+        div.title = filename;
+		const mime = file.mime_type || 'Unknown';
+        const ext = getFriendlyExtension(mime);
+        const uploaded = new Date(file.date).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+        const fileSizeKb = Math.round((file.media_details?.filesize || 0) / 1024);
+        const readableSize = fileSizeKb >= 1024
+            ? `${(fileSizeKb / 1024).toFixed(1)} MB`
+            : `${fileSizeKb} KB`;
+
+
+		let thumbUrl = '';
+		if (mime === 'application/pdf') {
+			thumbUrl = file.media_details?.sizes?.full?.source_url || '';
+		}
+
+		const iconClass = getIconClassForMime(mime);
+
+		div.innerHTML = `
+			<div class="tdmedia-file-thumb">
+				${thumbUrl ? `<img src="${thumbUrl}" alt="${filename}" />`
+				           : `<span class="dashicons ${iconClass}"></span>`}
+			</div>
+			<div class="tdmedia-file-info">
+                <div class="tdmedia-file-name">${filename}</div>
+                <div class="tdmedia-file-type">${ext.toUpperCase()}</div>
+                <div class="tdmedia-file-type">${readableSize}</div>
+                <div class="tdmedia-file-meta">${uploaded}</div>
+            </div>
+
+		`;
+
+		div.addEventListener('click', () => openTdMediaModal(file));
+
+		gridWrap.appendChild(div);
+	});
+
+	grid.appendChild(gridWrap);
+}
+
+
+
 
 
 
@@ -510,18 +631,18 @@ function layoutRows(items, clear = true) {
 
 			if (isLast && rowWidth < maxRowWidth) {
 				// Ragged edge row – no shrinking
-				currentRow.forEach(({ item, boostedAR }) => {
+				currentRow.forEach(({ item, boostedAR }, i) => {
 					const basis = targetRowHeight * boostedAR;
-					row.appendChild(createTdMediaItem(item, basis));
+					row.appendChild(createTdMediaItem(item, basis, index - currentRow.length + 1 + i));
 				});
 			} else {
 				// Normal row – shrink to fit
 				const totalScaled = currentRow.reduce((sum, i) => sum + (targetRowHeight * i.boostedAR), 0);
 				const shrinkRatio = (maxRowWidth - spacing * (currentRow.length - 1)) / totalScaled;
 
-				currentRow.forEach(({ item, boostedAR }) => {
+				currentRow.forEach(({ item, boostedAR }, i) => {
 					const basis = targetRowHeight * boostedAR * shrinkRatio;
-					row.appendChild(createTdMediaItem(item, basis));
+					row.appendChild(createTdMediaItem(item, basis, index - currentRow.length + 1 + i));
 				});
 			}
 
@@ -802,6 +923,67 @@ function setupSearchInput() {
 	});
 }
 
+
+function renderViewToggle() {
+	const existing = document.getElementById('tdmedia-view-toggle');
+	if (existing) existing.remove();
+
+	const wrap = document.createElement('div');
+	wrap.id = 'tdmedia-view-toggle';
+	wrap.style = `
+        display: inline-flex;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    `;
+
+
+	const views = [
+        { key: 'images', label: 'Images', icon: 'dashicons-format-image' },
+        { key: 'files', label: 'Files', icon: 'dashicons-media-document' },
+    ];
+
+
+	views.forEach(view => {
+		const btn = document.createElement('button');
+		btn.innerHTML = `
+            <span class="dashicons ${view.icon}" style="margin-right: 0.5em;"></span>
+            ${view.label}
+        `;
+		btn.dataset.view = view.key;
+		btn.style = `
+            border: none;
+            background: ${tdMedia.state.viewMode === view.key ? '#2363e0' : '#f1f1f1'};
+            color: ${tdMedia.state.viewMode === view.key ? '#fff' : '#000'};
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+        `;
+
+        if (tdMedia.state.viewMode !== view.key) {
+            btn.style.borderRight = '1px solid #ccc';
+        }
+
+		btn.addEventListener('click', () => {
+			tdMedia.state.viewMode = view.key;
+			renderGrid(tdMedia.state.items); // 🔁 re-render based on view
+			renderViewToggle(); // 🔁 re-render buttons
+			renderStatus(`Switched to "${view.label}" view`);
+		});
+
+		wrap.appendChild(btn);
+	});
+
+	// Insert right after searchWrap
+	const searchWrap = document.getElementById('tdmedia-search')?.parentElement;
+	if (searchWrap) {
+		searchWrap.insertAdjacentElement('afterend', wrap);
+	}
+}
 
 
 
