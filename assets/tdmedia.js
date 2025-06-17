@@ -25,6 +25,8 @@ const tdMedia = {
 // Store all loaded items globally for modal navigation
 let tdmediaItems = [];
 
+let tdModalKeyHandler = null;
+
 
 /* A few helpers ----- */
 function getFlexBasis(width, height, targetRowHeight = 360) {
@@ -134,6 +136,13 @@ function openTdMediaModal(item) {
 	console.log('[TDMEDIA] Injecting modal for:', item);
 	document.getElementById('tdmedia-modal')?.remove();
 
+    const old = document.getElementById('tdmedia-modal');
+    if (old) {
+        old.remove();
+        while (old.firstChild) old.firstChild.remove(); // optional deep nuke
+    }
+
+
 	const isImage = item.mime_type?.startsWith('image/');
 	const currentViewItems = tdmediaItems.filter(i =>
 		isImage ? i.mime_type?.startsWith('image/') : !i.mime_type?.startsWith('image/')
@@ -240,20 +249,44 @@ function openTdMediaModal(item) {
 		document.removeEventListener('keydown', keyHandler);
 	};
 
-	// Shared handler for Escape + arrows
-	const keyHandler = (e) => {
-		if (!document.getElementById('tdmedia-modal')) return;
+	// // Shared handler for Escape + arrows
+	// const keyHandler = (e) => {
+	// 	if (!document.getElementById('tdmedia-modal')) return;
 
-		if (e.key === 'Escape') {
-			closeModal();
-		} else if (e.key === 'ArrowLeft' && currentIndex > 0) {
-			openTdMediaModal(currentViewItems[currentIndex - 1]);
-		} else if (e.key === 'ArrowRight' && currentIndex < currentViewItems.length - 1) {
-			openTdMediaModal(currentViewItems[currentIndex + 1]);
-		}
-	};
+	// 	if (e.key === 'Escape') {
+	// 		closeModal();
+	// 	} else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+	// 		openTdMediaModal(currentViewItems[currentIndex - 1]);
+	// 	} else if (e.key === 'ArrowRight' && currentIndex < currentViewItems.length - 1) {
+	// 		openTdMediaModal(currentViewItems[currentIndex + 1]);
+	// 	}
+	// };
 
-	document.addEventListener('keydown', keyHandler);
+	// document.addEventListener('keydown', keyHandler);
+
+    // Remove any previous key handler before assigning a new one
+    if (tdModalKeyHandler) {
+        document.removeEventListener('keydown', tdModalKeyHandler);
+    }
+
+    tdModalKeyHandler = (e) => {
+        const modal = document.getElementById('tdmedia-modal');
+        if (!modal) return;
+
+        if (e.key === 'ArrowLeft' && currentIndex > 0) {
+            openTdMediaModal(currentViewItems[currentIndex - 1]);
+        } else if (e.key === 'ArrowRight' && currentIndex < currentViewItems.length - 1) {
+            openTdMediaModal(currentViewItems[currentIndex + 1]);
+        } else if (e.key === 'Escape') {
+            modal.remove();
+            document.removeEventListener('keydown', tdModalKeyHandler);
+            tdModalKeyHandler = null;
+        }
+    };
+
+    document.addEventListener('keydown', tdModalKeyHandler);
+
+
 
 	modal.querySelector('.tdmedia-modal-overlay')?.addEventListener('click', closeModal);
 	modal.querySelector('#tdmedia-close-modal')?.addEventListener('click', closeModal);
